@@ -74,7 +74,7 @@ let db = loadDatabase();
 function getGeminiClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not configured in the environment.");
+    throw new Error("GEMINI_API_KEY no está configurada. Por favor introduce tu API Key en el menú Secrets de Google AI Studio o en las variables de entorno.");
   }
   return new GoogleGenAI({
     apiKey,
@@ -130,6 +130,50 @@ app.delete("/api/recipes/:id", (req, res) => {
   res.json({ success: true, id });
 });
 
+app.put("/api/recipes/:id", (req, res) => {
+  const { id } = req.params;
+  const index = db.recipes.findIndex(r => r.id === id);
+  if (index === -1) {
+    res.status(404).json({ error: "Receta no encontrada" });
+    return;
+  }
+  const updated: Recipe = {
+    ...db.recipes[index],
+    ...req.body,
+    id
+  };
+  db.recipes[index] = updated;
+
+  // Also update recipe references in weekly and monthly plans
+  const updateMeals = (meals: any[]) => {
+    if (!Array.isArray(meals)) return;
+    meals.forEach(m => {
+      if (m.recipeId === id) {
+        m.name = updated.name;
+        m.timeMinutes = updated.timeMinutes;
+        m.calories = updated.calories;
+        m.imageUrl = updated.imageUrl;
+        m.category = updated.category;
+      }
+    });
+  };
+
+  Object.values(db.weeklyPlan.days || {}).forEach(d => {
+    updateMeals(d.breakfast);
+    updateMeals(d.lunch);
+    updateMeals(d.dinner);
+  });
+
+  Object.values(db.monthPlan.days || {}).forEach(d => {
+    updateMeals(d.breakfast);
+    updateMeals(d.lunch);
+    updateMeals(d.dinner);
+  });
+
+  saveDatabase(db);
+  res.json(updated);
+});
+
 // Weekly Plan
 app.get("/api/plans/weekly", (_req, res) => {
   res.json(db.weeklyPlan);
@@ -137,6 +181,16 @@ app.get("/api/plans/weekly", (_req, res) => {
 
 app.post("/api/plans/weekly", (req, res) => {
   db.weeklyPlan = req.body;
+  // Sincronización bidireccional: propagar los días de la semana a la vista mensual
+  if (req.body.days && typeof req.body.days === "object") {
+    Object.entries(req.body.days).forEach(([dateStr, dayPlan]: [string, any]) => {
+      db.monthPlan.days[dateStr] = dayPlan;
+    });
+    db.monthPlan.plannedMealsCount = Object.values(db.monthPlan.days).reduce(
+      (acc: number, d: any) => acc + (d.breakfast?.length || 0) + (d.lunch?.length || 0) + (d.dinner?.length || 0),
+      0
+    );
+  }
   saveDatabase(db);
   res.json(db.weeklyPlan);
 });
@@ -148,6 +202,14 @@ app.get("/api/plans/monthly", (_req, res) => {
 
 app.post("/api/plans/monthly", (req, res) => {
   db.monthPlan = req.body;
+  // Sincronización bidireccional: propagar los días del mes a la vista semanal
+  if (req.body.days && typeof req.body.days === "object") {
+    Object.keys(db.weeklyPlan.days || {}).forEach(dateStr => {
+      if (req.body.days[dateStr]) {
+        db.weeklyPlan.days[dateStr] = req.body.days[dateStr];
+      }
+    });
+  }
   saveDatabase(db);
   res.json(db.monthPlan);
 });
@@ -604,4 +666,9 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
+export { app };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   Upload,
@@ -14,7 +14,9 @@ import {
 import { Recipe, Difficulty } from '../types';
 
 interface AddRecipeViewProps {
+  recipeToEdit?: Recipe | null;
   onSaveRecipe: (recipe: Omit<Recipe, 'id' | 'createdAt'>) => void;
+  onUpdateRecipe?: (recipe: Recipe) => void;
   onCancel: () => void;
   categories?: string[];
   onAddCategory?: (cat: string) => void;
@@ -22,28 +24,63 @@ interface AddRecipeViewProps {
 }
 
 export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
+  recipeToEdit,
   onSaveRecipe,
+  onUpdateRecipe,
   onCancel,
   categories,
   onAddCategory,
   onDeleteCategory,
 }) => {
-  const [urlInput, setUrlInput] = useState('');
+  const [urlInput, setUrlInput] = useState(recipeToEdit?.sourceUrl || '');
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
 
-  // Default empty form states - everything blank as requested
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [timeMinutes, setTimeMinutes] = useState<string>('');
-  const [calories, setCalories] = useState<string>('');
-  const [servings, setServings] = useState<string>('');
-  const [category, setCategory] = useState<string>('');
-  const [difficulty, setDifficulty] = useState<Difficulty>('Fácil');
-  const [imageUrl, setImageUrl] = useState('');
-  const [ingredients, setIngredients] = useState<string[]>([]);
+  // Form states
+  const [name, setName] = useState(recipeToEdit?.name || '');
+  const [description, setDescription] = useState(recipeToEdit?.description || '');
+  const [timeMinutes, setTimeMinutes] = useState<string>(
+    recipeToEdit?.timeMinutes ? String(recipeToEdit.timeMinutes) : ''
+  );
+  const [calories, setCalories] = useState<string>(
+    recipeToEdit?.calories ? String(recipeToEdit.calories) : ''
+  );
+  const [servings, setServings] = useState<string>(
+    recipeToEdit?.servings ? String(recipeToEdit.servings) : ''
+  );
+  const [category, setCategory] = useState<string>(recipeToEdit?.category || '');
+  const [difficulty, setDifficulty] = useState<Difficulty>(recipeToEdit?.difficulty || 'Fácil');
+  const [imageUrl, setImageUrl] = useState(recipeToEdit?.imageUrl || '');
+  const [ingredients, setIngredients] = useState<string[]>(
+    recipeToEdit?.ingredients ? [...recipeToEdit.ingredients] : []
+  );
   const [newIngredient, setNewIngredient] = useState('');
-  const [instructionsText, setInstructionsText] = useState('');
+  const [instructionsText, setInstructionsText] = useState(
+    recipeToEdit?.instructions && Array.isArray(recipeToEdit.instructions)
+      ? recipeToEdit.instructions.map((inst, i) => `${i + 1}. ${inst}`).join('\n')
+      : ''
+  );
+
+  // Reset or initialize whenever recipeToEdit changes
+  useEffect(() => {
+    if (recipeToEdit) {
+      setName(recipeToEdit.name || '');
+      setDescription(recipeToEdit.description || '');
+      setTimeMinutes(recipeToEdit.timeMinutes ? String(recipeToEdit.timeMinutes) : '');
+      setCalories(recipeToEdit.calories ? String(recipeToEdit.calories) : '');
+      setServings(recipeToEdit.servings ? String(recipeToEdit.servings) : '');
+      setCategory(recipeToEdit.category || '');
+      setDifficulty(recipeToEdit.difficulty || 'Fácil');
+      setImageUrl(recipeToEdit.imageUrl || '');
+      setIngredients(recipeToEdit.ingredients ? [...recipeToEdit.ingredients] : []);
+      setInstructionsText(
+        recipeToEdit.instructions && Array.isArray(recipeToEdit.instructions)
+          ? recipeToEdit.instructions.map((inst, i) => `${i + 1}. ${inst}`).join('\n')
+          : ''
+      );
+      setUrlInput(recipeToEdit.sourceUrl || '');
+    }
+  }, [recipeToEdit]);
 
   // Category management state
   const DEFAULT_INITIAL_CATEGORIES = [
@@ -163,7 +200,7 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
     const numCalories = calories ? Number(calories) : 350;
     const numServings = servings ? Number(servings) : 1;
 
-    onSaveRecipe({
+    const recipeData = {
       name: name.trim(),
       description: description.trim(),
       timeMinutes: numMinutes,
@@ -176,7 +213,16 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
       ingredients: ingredients.filter((i) => i.trim().length > 0),
       instructions: instructionsArray,
       sourceUrl: urlInput.trim()
-    });
+    };
+
+    if (recipeToEdit && onUpdateRecipe) {
+      onUpdateRecipe({
+        ...recipeToEdit,
+        ...recipeData
+      });
+    } else {
+      onSaveRecipe(recipeData);
+    }
   };
 
   return (
@@ -190,9 +236,16 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
           <ArrowLeft className="w-4 h-4" />
           <span>Volver al Recetario</span>
         </button>
-        <h2 className="text-xl md:text-2xl font-bold text-[#191c1d] font-heading">
-          Añadir Nueva Receta
-        </h2>
+        <div className="text-center">
+          <h2 className="text-xl md:text-2xl font-bold text-[#191c1d] font-heading">
+            {recipeToEdit ? 'Editar Receta' : 'Añadir Nueva Receta'}
+          </h2>
+          {recipeToEdit && (
+            <p className="text-xs text-[#707973] mt-0.5">
+              Editando: <span className="font-semibold text-[#0f5238]">{recipeToEdit.name}</span>
+            </p>
+          )}
+        </div>
         <div className="w-16" />
       </div>
 
@@ -585,7 +638,7 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
             className="px-6 py-2.5 bg-[#0f5238] hover:bg-[#2d6a4f] text-white font-semibold text-xs md:text-sm rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-98"
           >
             <Check className="w-4 h-4" />
-            <span>Guardar Receta</span>
+            <span>{recipeToEdit ? 'Guardar Cambios' : 'Guardar Receta'}</span>
           </button>
         </div>
       </form>

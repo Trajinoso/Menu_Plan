@@ -49,6 +49,8 @@ export function App() {
   const [isGenerateAIModalOpen, setIsGenerateAIModalOpen] = useState(false);
 
   // Core Data States with localStorage persistence for static deployments (GitHub Pages)
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
+
   const [recipes, setRecipes] = useState<Recipe[]>(() => {
     try {
       const saved = localStorage.getItem('mm_recipes');
@@ -207,9 +209,111 @@ export function App() {
     }
   };
 
-  // Update weekly plan
+  // Open add recipe view cleanly
+  const handleOpenAddRecipe = () => {
+    setEditingRecipe(null);
+    setActiveTab('add-recipe');
+  };
+
+  // Open recipe to edit
+  const handleEditRecipe = (recipe: Recipe) => {
+    setEditingRecipe(recipe);
+    setActiveTab('add-recipe');
+  };
+
+  // Save updated recipe
+  const handleUpdateRecipe = async (updated: Recipe) => {
+    try {
+      const res = await fetch(`/api/recipes/${updated.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        setRecipes((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
+      } else {
+        setRecipes((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      }
+    } catch (err) {
+      setRecipes((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    }
+
+    // Propagate updated recipe info to any meals in plans
+    const updateMealItem = (m: MealItem): MealItem => {
+      if (m.recipeId === updated.id) {
+        return {
+          ...m,
+          name: updated.name,
+          timeMinutes: updated.timeMinutes,
+          calories: updated.calories,
+          imageUrl: updated.imageUrl,
+          category: updated.category
+        };
+      }
+      return m;
+    };
+
+    setWeeklyPlan((prev) => ({
+      ...prev,
+      days: Object.fromEntries(
+        Object.entries(prev.days).map(([k, d]) => [
+          k,
+          {
+            ...d,
+            breakfast: (d.breakfast || []).map(updateMealItem),
+            lunch: (d.lunch || []).map(updateMealItem),
+            dinner: (d.dinner || []).map(updateMealItem)
+          }
+        ])
+      )
+    }));
+
+    setMonthPlan((prev) => ({
+      ...prev,
+      days: Object.fromEntries(
+        Object.entries(prev.days).map(([k, d]) => [
+          k,
+          {
+            ...d,
+            breakfast: (d.breakfast || []).map(updateMealItem),
+            lunch: (d.lunch || []).map(updateMealItem),
+            dinner: (d.dinner || []).map(updateMealItem)
+          }
+        ])
+      )
+    }));
+
+    setEditingRecipe(null);
+    setActiveTab('recipes');
+    showToast(`¡Receta "${updated.name}" actualizada con éxito!`);
+  };
+
+  // Update weekly plan with bidirectional sync to monthly plan
   const handleUpdateWeeklyPlan = async (updated: WeeklyPlan) => {
     setWeeklyPlan(updated);
+
+    // Sincronizar automáticamente cada día de la semana con la vista mensual
+    setMonthPlan((prevMonth) => {
+      const newMonthDays = { ...prevMonth.days };
+      Object.entries(updated.days).forEach(([dateStr, dayPlan]) => {
+        newMonthDays[dateStr] = {
+          ...dayPlan,
+          dayName: dayPlan.dayName || 'Día',
+          dayNumber: parseInt(dateStr.split('-')[2] || '1', 10),
+        };
+      });
+      const plannedMealsCount = (Object.values(newMonthDays) as DayPlan[]).reduce(
+        (acc, d) => acc + (d.breakfast?.length || 0) + (d.lunch?.length || 0) + (d.dinner?.length || 0),
+        0
+      );
+      return {
+        ...prevMonth,
+        days: newMonthDays,
+        plannedMealsCount
+      };
+    });
+
     try {
       await fetch('/api/plans/weekly', {
         method: 'POST',
@@ -221,9 +325,28 @@ export function App() {
     }
   };
 
-  // Update monthly plan
+  // Update monthly plan with bidirectional sync to weekly plan
   const handleUpdateMonthPlan = async (updated: MonthPlan) => {
     setMonthPlan(updated);
+
+    // Sincronizar automáticamente cualquier día del mes que esté en la semana activa
+    setWeeklyPlan((prevWeek) => {
+      const newWeeklyDays = { ...prevWeek.days };
+      let changed = false;
+      Object.keys(newWeeklyDays).forEach((dateStr) => {
+        if (updated.days && updated.days[dateStr]) {
+          newWeeklyDays[dateStr] = {
+            ...newWeeklyDays[dateStr],
+            breakfast: updated.days[dateStr].breakfast || [],
+            lunch: updated.days[dateStr].lunch || [],
+            dinner: updated.days[dateStr].dinner || [],
+          };
+          changed = true;
+        }
+      });
+      return changed ? { ...prevWeek, days: newWeeklyDays } : prevWeek;
+    });
+
     try {
       await fetch('/api/plans/monthly', {
         method: 'POST',
@@ -593,7 +716,7 @@ export function App() {
       case 'recipes':
         return 'Recetario';
       case 'add-recipe':
-        return 'Nueva Receta';
+        return editingRecipe ? 'Editar Receta' : 'Nueva Receta';
       case 'history':
         return 'Historial';
       case 'settings':
@@ -609,7 +732,11 @@ export function App() {
       <Sidebar
         currentTab={activeTab}
         onSelectTab={(tab) => {
-          setActiveTab(tab);
+          if (tab === 'add-recipe') {
+            handleOpenAddRecipe();
+          } else {
+            setActiveTab(tab);
+          }
           setMobileMenuOpen(false);
         }}
         onOpenNewMenu={() => setActiveTab('weekly')}
@@ -687,10 +814,16 @@ export function App() {
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
           onSyncGit={handleForceSync}
           isSyncing={isSyncing}
-          onOpenNewRecipe={() => setActiveTab('add-recipe')}
+          onOpenNewRecipe={handleOpenAddRecipe}
           onOpenGenerateAI={() => setIsGenerateAIModalOpen(true)}
           activeTab={activeTab}
-          onSelectTab={setActiveTab}
+          onSelectTab={(tab) => {
+            if (tab === 'add-recipe') {
+              handleOpenAddRecipe();
+            } else {
+              setActiveTab(tab);
+            }
+          }}
         />
 
         {/* View Switcher Container */}
@@ -701,7 +834,7 @@ export function App() {
               recipes={recipes}
               categories={categories}
               onUpdatePlan={handleUpdateWeeklyPlan}
-              onOpenAddRecipe={() => setActiveTab('add-recipe')}
+              onOpenAddRecipe={handleOpenAddRecipe}
               onOpenGenerateAI={() => setIsGenerateAIModalOpen(true)}
               onNavigateToMonthly={() => setActiveTab('monthly')}
             />
@@ -715,24 +848,30 @@ export function App() {
               onUpdateMonthPlan={handleUpdateMonthPlan}
               onAutofillEmpty={handleAutofillEmpty}
               isAutofilling={isAutofilling}
-              onOpenAddRecipe={() => setActiveTab('add-recipe')}
+              onOpenAddRecipe={handleOpenAddRecipe}
             />
           )}
 
           {activeTab === 'recipes' && (
             <RecipesView
               recipes={recipes}
-              onOpenAddRecipe={() => setActiveTab('add-recipe')}
+              onOpenAddRecipe={handleOpenAddRecipe}
               onAssignRecipeToPlan={handleAssignRecipeToPlan}
               onOpenGenerateAI={() => setIsGenerateAIModalOpen(true)}
               onDeleteRecipe={handleDeleteRecipe}
+              onEditRecipe={handleEditRecipe}
             />
           )}
 
           {activeTab === 'add-recipe' && (
             <AddRecipeView
+              recipeToEdit={editingRecipe}
               onSaveRecipe={handleSaveNewRecipe}
-              onCancel={() => setActiveTab('recipes')}
+              onUpdateRecipe={handleUpdateRecipe}
+              onCancel={() => {
+                setEditingRecipe(null);
+                setActiveTab('recipes');
+              }}
               categories={categories}
               onAddCategory={handleAddCategory}
               onDeleteCategory={handleDeleteCategory}

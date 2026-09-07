@@ -11,7 +11,11 @@ import {
   ChevronRight,
   Filter,
   BookOpen,
-  Trash2
+  Trash2,
+  Pencil,
+  Eye,
+  Users,
+  Utensils
 } from 'lucide-react';
 import { Recipe, MealType } from '../types';
 import { getCurrentWeekDates } from '../utils/dateHelpers';
@@ -22,6 +26,7 @@ interface RecipesViewProps {
   onAssignRecipeToPlan: (recipe: Recipe, dates: string[], mealType: MealType) => void;
   onOpenGenerateAI: () => void;
   onDeleteRecipe?: (id: string) => void;
+  onEditRecipe?: (recipe: Recipe) => void;
 }
 
 export const RecipesView: React.FC<RecipesViewProps> = ({
@@ -30,10 +35,12 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
   onAssignRecipeToPlan,
   onOpenGenerateAI,
   onDeleteRecipe,
+  onEditRecipe,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('Todos');
   const [assigningRecipe, setAssigningRecipe] = useState<Recipe | null>(null);
+  const [selectedDetailRecipe, setSelectedDetailRecipe] = useState<Recipe | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Dynamic current week dates
@@ -155,8 +162,12 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
               key={recipe.id}
               className="bg-white rounded-2xl border border-[#e1e3e4] overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
             >
-              {/* Image & Category Pill */}
-              <div className="relative h-44 w-full overflow-hidden bg-[#e1e3e4]">
+              {/* Image & Category Pill (clickable to view recipe details) */}
+              <div
+                onClick={() => setSelectedDetailRecipe(recipe)}
+                className="relative h-44 w-full overflow-hidden bg-[#e1e3e4] cursor-pointer"
+                title="Haz clic para ver detalles de la receta"
+              >
                 <img
                   src={recipe.imageUrl}
                   alt={recipe.name}
@@ -171,12 +182,21 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
                     IA
                   </span>
                 )}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors flex items-center justify-center">
+                  <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1">
+                    <Eye className="w-3.5 h-3.5" />
+                    Ver receta
+                  </span>
+                </div>
               </div>
 
               {/* Card Body */}
               <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                <div>
-                  <h3 className="font-bold text-base text-[#191c1d] leading-snug line-clamp-2 font-heading">
+                <div
+                  onClick={() => setSelectedDetailRecipe(recipe)}
+                  className="cursor-pointer group/title"
+                >
+                  <h3 className="font-bold text-base text-[#191c1d] group-hover/title:text-[#0f5238] leading-snug line-clamp-2 font-heading transition-colors">
                     {recipe.name}
                   </h3>
                   {recipe.description && (
@@ -208,32 +228,51 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
               {/* Card Action */}
               <div className="p-4 pt-0 flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={() => setAssigningRecipe(recipe)}
-                  className="flex-1 bg-[#f8f9fa] hover:bg-[#0f5238] text-[#0f5238] hover:text-white border border-[#bfc9c1] hover:border-[#0f5238] font-semibold text-xs py-2.5 px-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98"
+                  className="flex-1 bg-[#f8f9fa] hover:bg-[#0f5238] text-[#0f5238] hover:text-white border border-[#bfc9c1] hover:border-[#0f5238] font-semibold text-xs py-2 px-2.5 rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98"
                 >
-                  <Plus className="w-4 h-4 stroke-[2.5]" />
-                  <span>Añadir al Plan</span>
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Añadir</span>
                 </button>
+
+                {onEditRecipe && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditRecipe(recipe);
+                    }}
+                    title="Editar receta"
+                    className="p-2 text-[#0f5238] hover:text-[#0f5238] hover:bg-[#b1f0ce]/40 border border-[#bfc9c1] hover:border-[#0f5238] rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span className="text-xs">Editar</span>
+                  </button>
+                )}
+
                 {onDeleteRecipe && (
                   confirmDeleteId === recipe.id ? (
                     <button
+                      type="button"
                       onClick={() => {
                         onDeleteRecipe(recipe.id);
                         setConfirmDeleteId(null);
                       }}
                       title="Clic para confirmar eliminación"
-                      className="px-3 py-2.5 bg-[#ba1a1a] hover:bg-[#93000a] text-white rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0 animate-in fade-in"
+                      className="px-2.5 py-2 bg-[#ba1a1a] hover:bg-[#93000a] text-white rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0 animate-in fade-in"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>¿Borrar?</span>
                     </button>
                   ) : (
                     <button
+                      type="button"
                       onClick={() => setConfirmDeleteId(recipe.id)}
                       title="Eliminar receta"
-                      className="p-2.5 text-[#707973] hover:text-[#ba1a1a] hover:bg-[#ffdad6]/40 border border-transparent hover:border-[#ba1a1a]/30 rounded-xl transition-all cursor-pointer shrink-0"
+                      className="p-2 text-[#707973] hover:text-[#ba1a1a] hover:bg-[#ffdad6]/40 border border-transparent hover:border-[#ba1a1a]/30 rounded-xl transition-all cursor-pointer shrink-0"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )
                 )}
@@ -384,6 +423,166 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recipe Detail Modal (Allows viewing recipe details & editing directly) */}
+      {selectedDetailRecipe && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-xl animate-in fade-in zoom-in-95 duration-200">
+            {/* Header Image & Close Button */}
+            <div className="relative h-56 w-full bg-[#f3f4f5] shrink-0">
+              <img
+                src={selectedDetailRecipe.imageUrl}
+                alt={selectedDetailRecipe.name}
+                className="w-full h-full object-cover"
+              />
+              <button
+                onClick={() => setSelectedDetailRecipe(null)}
+                className="absolute top-3 right-3 bg-black/60 hover:bg-black/80 text-white p-2 rounded-full cursor-pointer transition-colors shadow-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                <span className="bg-[#0f5238] text-white text-xs font-semibold px-3 py-1 rounded-full shadow-xs">
+                  {selectedDetailRecipe.category}
+                </span>
+                <span className="bg-white/90 backdrop-blur-xs text-[#191c1d] text-xs font-semibold px-2.5 py-1 rounded-full shadow-xs">
+                  {selectedDetailRecipe.difficulty}
+                </span>
+              </div>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
+              <div>
+                <h2 className="text-xl md:text-2xl font-bold text-[#191c1d] font-heading">
+                  {selectedDetailRecipe.name}
+                </h2>
+                {selectedDetailRecipe.description && (
+                  <p className="text-xs md:text-sm text-[#707973] mt-1.5 leading-relaxed">
+                    {selectedDetailRecipe.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Quick Specs Grid */}
+              <div className="grid grid-cols-3 gap-3 p-3.5 bg-[#f8f9fa] rounded-xl border border-[#e1e3e4]">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#b1f0ce]/40 flex items-center justify-center text-[#0f5238]">
+                    <Timer className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#707973] block">Tiempo</span>
+                    <span className="text-xs font-bold text-[#191c1d]">{selectedDetailRecipe.timeMinutes} min</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#ffdad6]/40 flex items-center justify-center text-[#9b4500]">
+                    <Flame className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#707973] block">Calorías</span>
+                    <span className="text-xs font-bold text-[#191c1d]">{selectedDetailRecipe.calories} kcal</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#f3f4f5] flex items-center justify-center text-[#404943]">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#707973] block">Porciones</span>
+                    <span className="text-xs font-bold text-[#191c1d]">{selectedDetailRecipe.servings || 1} raciones</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ingredients */}
+              <div>
+                <h3 className="text-xs font-bold text-[#404943] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Utensils className="w-3.5 h-3.5 text-[#0f5238]" />
+                  <span>Ingredientes ({selectedDetailRecipe.ingredients?.length || 0})</span>
+                </h3>
+                {selectedDetailRecipe.ingredients && selectedDetailRecipe.ingredients.length > 0 ? (
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-[#191c1d]">
+                    {selectedDetailRecipe.ingredients.map((ing, idx) => (
+                      <li key={idx} className="flex items-start gap-2 bg-[#f8f9fa] p-2 rounded-lg border border-[#e1e3e4]/60">
+                        <Check className="w-3.5 h-3.5 text-[#0f5238] mt-0.5 shrink-0" />
+                        <span>{ing}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-[#707973] italic">No hay ingredientes registrados para esta receta.</p>
+                )}
+              </div>
+
+              {/* Instructions */}
+              <div>
+                <h3 className="text-xs font-bold text-[#404943] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-[#0f5238]" />
+                  <span>Instrucciones de Preparación</span>
+                </h3>
+                {selectedDetailRecipe.instructions && selectedDetailRecipe.instructions.length > 0 ? (
+                  <div className="space-y-2.5">
+                    {selectedDetailRecipe.instructions.map((step, idx) => (
+                      <div key={idx} className="flex items-start gap-3 p-2.5 bg-[#f8f9fa] rounded-xl border border-[#e1e3e4]/60">
+                        <span className="w-5 h-5 rounded-full bg-[#0f5238] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                          {idx + 1}
+                        </span>
+                        <p className="text-xs md:text-sm text-[#191c1d] leading-relaxed">
+                          {step}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#707973] italic">No hay instrucciones registradas.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="p-4 bg-[#f8f9fa] border-t border-[#e1e3e4] flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedDetailRecipe(null)}
+                className="px-4 py-2 text-xs font-semibold text-[#707973] hover:text-[#191c1d] transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
+
+              <div className="flex items-center gap-2">
+                {onEditRecipe && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rec = selectedDetailRecipe;
+                      setSelectedDetailRecipe(null);
+                      onEditRecipe(rec);
+                    }}
+                    className="px-4 py-2.5 bg-white hover:bg-[#b1f0ce]/40 text-[#0f5238] border border-[#0f5238] rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-98"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Editar Receta</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rec = selectedDetailRecipe;
+                    setSelectedDetailRecipe(null);
+                    setAssigningRecipe(rec);
+                  }}
+                  className="px-5 py-2.5 bg-[#0f5238] hover:bg-[#2d6a4f] text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-98"
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Añadir al Plan</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

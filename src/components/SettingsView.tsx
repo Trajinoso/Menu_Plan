@@ -195,6 +195,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             </div>
 
+            {/* Secrets & API Key Status Banner */}
+            <div className={`p-4 rounded-xl border flex items-start gap-3.5 ${
+              aiSettings.hasApiKey
+                ? 'bg-[#e8f5ee] border-[#b1f0ce] text-[#0f5238]'
+                : 'bg-[#fff4e5] border-[#ffcc80] text-[#9b4500]'
+            }`}>
+              <div className="p-1.5 rounded-lg bg-white/70 shadow-2xs mt-0.5">
+                <Key className="w-4 h-4" />
+              </div>
+              <div className="flex-1 text-xs space-y-1">
+                <div className="flex items-center justify-between font-bold text-sm">
+                  <span>API Key de Gemini (Secrets)</span>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    aiSettings.hasApiKey
+                      ? 'bg-[#0f5238] text-white'
+                      : 'bg-[#9b4500] text-white'
+                  }`}>
+                    {aiSettings.hasApiKey ? '✓ Clave Activa' : '⚠ Pendiente en Secrets'}
+                  </span>
+                </div>
+                <p className="leading-relaxed">
+                  {aiSettings.hasApiKey
+                    ? 'La clave GEMINI_API_KEY está configurada de forma segura en las variables de entorno del servidor. El modelo Gemini 2.5 Flash está listo para operar.'
+                    : 'Para activar la IA en Google AI Studio, añade GEMINI_API_KEY en los Secrets del entorno (o en .env). Si despliegas en Vercel o Netlify, agrégala en "Environment Variables".'}
+                </p>
+              </div>
+            </div>
+
             <form onSubmit={handleSaveAI} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-[#404943] uppercase tracking-wider mb-1.5">
