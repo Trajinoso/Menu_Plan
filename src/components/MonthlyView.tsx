@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,6 +16,7 @@ import { SPANISH_MONTHS, SPANISH_DAYS_FULL } from '../utils/dateHelpers';
 interface MonthlyViewProps {
   monthPlan: MonthPlan;
   recipes: Recipe[];
+  categories?: string[];
   onUpdateMonthPlan: (updatedMonthPlan: MonthPlan) => void;
   onAutofillEmpty: (year?: number, month?: number) => Promise<void>;
   isAutofilling: boolean;
@@ -28,6 +29,7 @@ const DAY_NAMES_ES = SPANISH_DAYS_FULL;
 export const MonthlyView: React.FC<MonthlyViewProps> = ({
   monthPlan,
   recipes,
+  categories,
   onUpdateMonthPlan,
   onAutofillEmpty,
   isAutofilling,
@@ -37,6 +39,19 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [selectedDayModal, setSelectedDayModal] = useState<DayPlan | null>(null);
   const [addingToMealType, setAddingToMealType] = useState<'lunch' | 'dinner' | null>(null);
+  const [addCategoryFilter, setAddCategoryFilter] = useState<string>('Todas');
+
+  const availableCategories = useMemo(() => {
+    const cats = Array.from(
+      new Set([...(categories || []), ...recipes.map((r) => r.category).filter(Boolean)])
+    );
+    return ['Todas', ...cats];
+  }, [recipes, categories]);
+
+  const filteredRecipesForSlot = useMemo(() => {
+    if (addCategoryFilter === 'Todas') return recipes;
+    return recipes.filter((r) => r.category === addCategoryFilter);
+  }, [recipes, addCategoryFilter]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth(); // 0-indexed (0 = Enero, 9 = Octubre)
@@ -491,23 +506,57 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({
                       Elegir receta para {addingToMealType === 'lunch' ? 'Almuerzo' : 'Cena'}:
                     </span>
                     <button
-                      onClick={() => setAddingToMealType(null)}
+                      onClick={() => {
+                        setAddingToMealType(null);
+                        setAddCategoryFilter('Todas');
+                      }}
                       className="text-xs text-[#707973] hover:text-[#191c1d] cursor-pointer"
                     >
                       Cancelar
                     </button>
                   </div>
-                  <div className="max-h-48 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
-                    {recipes.map((r) => (
+
+                  {/* Category Filter Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                    {availableCategories.map((cat) => (
                       <button
-                        key={r.id}
-                        onClick={() => handleAddRecipeToDay(r, addingToMealType)}
-                        className="w-full text-left p-2 rounded-lg bg-white hover:bg-[#b1f0ce]/20 border border-[#e1e3e4] hover:border-[#0f5238] flex items-center justify-between text-xs font-medium cursor-pointer transition-colors"
+                        key={cat}
+                        type="button"
+                        onClick={() => setAddCategoryFilter(cat)}
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                          addCategoryFilter === cat
+                            ? 'bg-[#0f5238] text-white shadow-2xs'
+                            : 'bg-white text-[#404943] border border-[#bfc9c1] hover:bg-[#f3f4f5]'
+                        }`}
                       >
-                        <span className="truncate mr-2 font-semibold text-[#191c1d]">{r.name}</span>
-                        <span className="text-[#9b4500] font-semibold shrink-0">{r.calories} kcal</span>
+                        {cat}
                       </button>
                     ))}
+                  </div>
+
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
+                    {filteredRecipesForSlot.length === 0 ? (
+                      <div className="text-center py-4 text-xs text-[#707973] italic">
+                        No hay recetas en la categoría "{addCategoryFilter}".
+                      </div>
+                    ) : (
+                      filteredRecipesForSlot.map((r) => (
+                        <button
+                          key={r.id}
+                          onClick={() => {
+                            handleAddRecipeToDay(r, addingToMealType);
+                            setAddCategoryFilter('Todas');
+                          }}
+                          className="w-full text-left p-2 rounded-lg bg-white hover:bg-[#b1f0ce]/20 border border-[#e1e3e4] hover:border-[#0f5238] flex items-center justify-between text-xs font-medium cursor-pointer transition-colors"
+                        >
+                          <div className="flex-1 min-w-0 mr-2">
+                            <div className="truncate font-semibold text-[#191c1d]">{r.name}</div>
+                            <div className="text-[10px] text-[#707973] mt-0.5">{r.category} • {r.timeMinutes}m</div>
+                          </div>
+                          <span className="text-[#9b4500] font-semibold shrink-0">{r.calories} kcal</span>
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
               )}

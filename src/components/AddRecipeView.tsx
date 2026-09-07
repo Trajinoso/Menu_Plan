@@ -8,44 +8,83 @@ import {
   ArrowLeft,
   Image as ImageIcon,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Tag
 } from 'lucide-react';
-import { Recipe, Difficulty, RecipeCategory } from '../types';
+import { Recipe, Difficulty } from '../types';
 
 interface AddRecipeViewProps {
   onSaveRecipe: (recipe: Omit<Recipe, 'id' | 'createdAt'>) => void;
   onCancel: () => void;
+  categories?: string[];
+  onAddCategory?: (cat: string) => void;
+  onDeleteCategory?: (cat: string) => void;
 }
 
 export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
   onSaveRecipe,
   onCancel,
+  categories,
+  onAddCategory,
+  onDeleteCategory,
 }) => {
   const [urlInput, setUrlInput] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
 
-  // Form states
+  // Default empty form states - everything blank as requested
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [timeMinutes, setTimeMinutes] = useState<number>(25);
-  const [calories, setCalories] = useState<number>(450);
-  const [servings, setServings] = useState<number>(2);
-  const [category, setCategory] = useState<RecipeCategory>('Proteico');
+  const [timeMinutes, setTimeMinutes] = useState<string>('');
+  const [calories, setCalories] = useState<string>('');
+  const [servings, setServings] = useState<string>('');
+  const [category, setCategory] = useState<string>('');
   const [difficulty, setDifficulty] = useState<Difficulty>('Fácil');
-  const [imageUrl, setImageUrl] = useState(
-    'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80'
-  );
-  const [ingredients, setIngredients] = useState<string[]>([
-    '200g Pechuga de pollo o tofu',
-    '1 taza de quinoa o arroz integral',
-    '1 aguacate en láminas',
-    '1 cda Aceite de oliva virgen extra'
-  ]);
+  const [imageUrl, setImageUrl] = useState('');
+  const [ingredients, setIngredients] = useState<string[]>([]);
   const [newIngredient, setNewIngredient] = useState('');
-  const [instructionsText, setInstructionsText] = useState(
-    '1. Lavar y cortar los ingredientes.\n2. Cocinar a la plancha a fuego medio durante 10-12 minutos.\n3. Servir en un bowl y aderezar al gusto.'
-  );
+  const [instructionsText, setInstructionsText] = useState('');
+
+  // Category management state
+  const DEFAULT_INITIAL_CATEGORIES = [
+    'Proteico',
+    'Vegetariano',
+    'Rápido',
+    'Desayuno',
+    'Almuerzo',
+    'Cena',
+    'Postre',
+    'Snack',
+    'Gourmet'
+  ];
+  const [localCategories, setLocalCategories] = useState<string[]>(DEFAULT_INITIAL_CATEGORIES);
+  const [newCategoryInput, setNewCategoryInput] = useState('');
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+
+  const availableCategories = categories && categories.length > 0 ? categories : localCategories;
+
+  const handleAddNewCategory = () => {
+    const trimmed = newCategoryInput.trim();
+    if (!trimmed) return;
+    if (onAddCategory) {
+      onAddCategory(trimmed);
+    }
+    if (!availableCategories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      setLocalCategories((prev) => [...prev, trimmed]);
+    }
+    setCategory(trimmed);
+    setNewCategoryInput('');
+  };
+
+  const handleDeleteCategoryItem = (catToDelete: string) => {
+    if (onDeleteCategory) {
+      onDeleteCategory(catToDelete);
+    }
+    setLocalCategories((prev) => prev.filter((c) => c.toLowerCase() !== catToDelete.toLowerCase()));
+    if (category === catToDelete) {
+      setCategory('');
+    }
+  };
 
   const presetImages = [
     { label: 'Bowl Saludable', url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80' },
@@ -76,10 +115,16 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
 
       if (data.name) setName(data.name);
       if (data.description) setDescription(data.description);
-      if (data.timeMinutes) setTimeMinutes(Number(data.timeMinutes));
-      if (data.calories) setCalories(Number(data.calories));
-      if (data.servings) setServings(Number(data.servings));
-      if (data.category) setCategory(data.category as RecipeCategory);
+      if (data.timeMinutes) setTimeMinutes(String(data.timeMinutes));
+      if (data.calories) setCalories(String(data.calories));
+      if (data.servings) setServings(String(data.servings));
+      if (data.category) {
+        setCategory(data.category);
+        if (!availableCategories.includes(data.category)) {
+          if (onAddCategory) onAddCategory(data.category);
+          setLocalCategories((prev) => [...prev, data.category]);
+        }
+      }
       if (data.difficulty) setDifficulty(data.difficulty as Difficulty);
       if (data.ingredients && Array.isArray(data.ingredients)) setIngredients(data.ingredients);
       if (data.instructions && Array.isArray(data.instructions)) {
@@ -113,19 +158,24 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
       .map((s) => s.replace(/^\d+\.\s*/, '').trim())
       .filter((s) => s.length > 0);
 
+    const chosenCategory = category.trim() || availableCategories[0] || 'General';
+    const numMinutes = timeMinutes ? Number(timeMinutes) : 20;
+    const numCalories = calories ? Number(calories) : 350;
+    const numServings = servings ? Number(servings) : 1;
+
     onSaveRecipe({
-      name,
-      description,
-      timeMinutes: Number(timeMinutes) || 20,
-      calories: Number(calories) || 400,
-      servings: Number(servings) || 2,
-      category,
+      name: name.trim(),
+      description: description.trim(),
+      timeMinutes: numMinutes,
+      calories: numCalories,
+      servings: numServings,
+      category: chosenCategory,
       difficulty,
-      tags: [category, difficulty, `${timeMinutes}m`],
-      imageUrl,
-      ingredients,
+      tags: [chosenCategory, difficulty, `${numMinutes}m`],
+      imageUrl: imageUrl.trim() || 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=800&auto=format&fit=crop&q=80',
+      ingredients: ingredients.filter((i) => i.trim().length > 0),
       instructions: instructionsArray,
-      sourceUrl: urlInput
+      sourceUrl: urlInput.trim()
     });
   };
 
@@ -207,12 +257,21 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
           </label>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
             <div className="md:col-span-1">
-              <div className="h-44 rounded-xl overflow-hidden border border-[#bfc9c1] bg-[#f8f9fa] relative group">
-                <img
-                  src={imageUrl}
-                  alt="Preview de receta"
-                  className="w-full h-full object-cover"
-                />
+              <div className="h-44 rounded-xl overflow-hidden border border-[#bfc9c1] bg-[#f8f9fa] relative group flex items-center justify-center">
+                {imageUrl ? (
+                  <img
+                    src={imageUrl}
+                    alt="Preview de receta"
+                    className="w-full h-full object-cover"
+                    onError={() => setImageUrl('')}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-4 text-center text-[#707973]">
+                    <ImageIcon className="w-8 h-8 mb-2 text-[#bfc9c1]" />
+                    <span className="text-xs font-semibold">Sin imagen</span>
+                    <span className="text-[11px] text-[#707973] mt-0.5">Elige un preset o pega una URL</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="md:col-span-2 space-y-3">
@@ -283,7 +342,8 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
               type="number"
               min="1"
               value={timeMinutes}
-              onChange={(e) => setTimeMinutes(Number(e.target.value))}
+              onChange={(e) => setTimeMinutes(e.target.value)}
+              placeholder="Ej: 25"
               className="w-full px-3.5 py-2 text-sm bg-[#f8f9fa] border border-[#bfc9c1] rounded-xl focus:outline-none focus:border-[#0f5238]"
             />
           </div>
@@ -296,7 +356,8 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
               type="number"
               min="1"
               value={calories}
-              onChange={(e) => setCalories(Number(e.target.value))}
+              onChange={(e) => setCalories(e.target.value)}
+              placeholder="Ej: 450"
               className="w-full px-3.5 py-2 text-sm bg-[#f8f9fa] border border-[#bfc9c1] rounded-xl focus:outline-none focus:border-[#0f5238]"
             />
           </div>
@@ -309,28 +370,102 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
               type="number"
               min="1"
               value={servings}
-              onChange={(e) => setServings(Number(e.target.value))}
+              onChange={(e) => setServings(e.target.value)}
+              placeholder="Ej: 2"
               className="w-full px-3.5 py-2 text-sm bg-[#f8f9fa] border border-[#bfc9c1] rounded-xl focus:outline-none focus:border-[#0f5238]"
             />
           </div>
 
           <div>
             <label className="block text-xs font-bold text-[#404943] uppercase tracking-wider mb-1.5">
-              Categoría
+              Categoría *
             </label>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value as RecipeCategory)}
+              onChange={(e) => setCategory(e.target.value)}
               className="w-full px-3.5 py-2 text-sm bg-[#f8f9fa] border border-[#bfc9c1] rounded-xl focus:outline-none focus:border-[#0f5238]"
             >
-              <option value="Proteico">Proteico (Alto en Proteína)</option>
-              <option value="Vegetariano">Vegetariano</option>
-              <option value="Rápido">Comida Rápida</option>
-              <option value="Desayuno">Desayuno</option>
-              <option value="Almuerzo">Almuerzo</option>
-              <option value="Cena">Cena</option>
-              <option value="Gourmet">Gourmet</option>
+              <option value="">-- Seleccionar categoría --</option>
+              {availableCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
             </select>
+          </div>
+
+          {/* Categorías Management: Add new and delete existing categories */}
+          <div className="md:col-span-2 p-4 bg-[#f8f9fa] border border-[#e1e3e4] rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Tag className="w-4 h-4 text-[#0f5238]" />
+                <span className="text-xs font-bold text-[#191c1d] uppercase tracking-wider">
+                  Gestión de Categorías ({availableCategories.length})
+                </span>
+              </div>
+              <span className="text-[11px] text-[#707973]">
+                Puedes crear nuevas o borrar las que no uses
+              </span>
+            </div>
+
+            {/* List of categories with delete icon */}
+            <div className="flex flex-wrap gap-2">
+              {availableCategories.map((cat) => (
+                <span
+                  key={cat}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                    category === cat
+                      ? 'bg-[#b1f0ce]/60 border-[#0f5238] text-[#0f5238]'
+                      : 'bg-white border-[#bfc9c1] text-[#404943]'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setCategory(cat)}
+                    className="cursor-pointer hover:underline"
+                    title={`Seleccionar ${cat}`}
+                  >
+                    {cat}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteCategoryItem(cat);
+                    }}
+                    title={`Eliminar categoría ${cat}`}
+                    className="p-0.5 rounded hover:bg-[#ffdad6] text-[#ba1a1a] transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            {/* Add new category form */}
+            <div className="flex gap-2 pt-1">
+              <input
+                type="text"
+                value={newCategoryInput}
+                onChange={(e) => setNewCategoryInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddNewCategory();
+                  }
+                }}
+                placeholder="Nombre de nueva categoría (ej: Vegano, Postre, Airfryer...)"
+                className="flex-1 px-3 py-2 text-xs md:text-sm bg-white border border-[#bfc9c1] rounded-lg focus:outline-none focus:border-[#0f5238]"
+              />
+              <button
+                type="button"
+                onClick={handleAddNewCategory}
+                className="px-3.5 py-2 bg-[#0f5238] hover:bg-[#2d6a4f] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Añadir Categoría</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -363,31 +498,37 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
             Ingredientes ({ingredients.length})
           </label>
           <div className="space-y-2 mb-3">
-            {ingredients.map((ing, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-[#e7e8e9] text-[#404943] text-xs font-bold flex items-center justify-center shrink-0">
-                  {idx + 1}
-                </span>
-                <input
-                  type="text"
-                  value={ing}
-                  onChange={(e) => {
-                    const updated = [...ingredients];
-                    updated[idx] = e.target.value;
-                    setIngredients(updated);
-                  }}
-                  className="flex-1 px-3 py-1.5 text-xs md:text-sm bg-[#f8f9fa] border border-[#bfc9c1] rounded-lg focus:outline-none focus:border-[#0f5238]"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemoveIngredient(idx)}
-                  className="p-1.5 text-[#ba1a1a] hover:bg-[#ffdad6] rounded-lg transition-colors cursor-pointer"
-                  title="Eliminar ingrediente"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
+            {ingredients.length === 0 ? (
+              <p className="text-xs text-[#707973] italic py-1">
+                Sin ingredientes añadidos. Escribe un ingrediente y pulsa Añadir o presiona Enter.
+              </p>
+            ) : (
+              ingredients.map((ing, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-[#e7e8e9] text-[#404943] text-xs font-bold flex items-center justify-center shrink-0">
+                    {idx + 1}
+                  </span>
+                  <input
+                    type="text"
+                    value={ing}
+                    onChange={(e) => {
+                      const updated = [...ingredients];
+                      updated[idx] = e.target.value;
+                      setIngredients(updated);
+                    }}
+                    className="flex-1 px-3 py-1.5 text-xs md:text-sm bg-[#f8f9fa] border border-[#bfc9c1] rounded-lg focus:outline-none focus:border-[#0f5238]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveIngredient(idx)}
+                    className="p-1.5 text-[#ba1a1a] hover:bg-[#ffdad6] rounded-lg transition-colors cursor-pointer"
+                    title="Eliminar ingrediente"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Add ingredient input */}

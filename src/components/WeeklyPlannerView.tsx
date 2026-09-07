@@ -22,6 +22,7 @@ import { SPANISH_MONTHS, getTodayISO } from '../utils/dateHelpers';
 interface WeeklyPlannerViewProps {
   plan: WeeklyPlan;
   recipes: Recipe[];
+  categories?: string[];
   onUpdatePlan: (updatedPlan: WeeklyPlan) => void;
   onOpenAddRecipe: () => void;
   onOpenGenerateAI: () => void;
@@ -31,6 +32,7 @@ interface WeeklyPlannerViewProps {
 export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
   plan,
   recipes,
+  categories,
   onUpdatePlan,
   onOpenAddRecipe,
   onOpenGenerateAI,
@@ -39,9 +41,22 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
   const dayKeys = Object.keys(plan.days || {});
   const [selectedDate, setSelectedDate] = useState<string>(() => dayKeys[0] || getTodayISO());
   const [quickAddModal, setQuickAddModal] = useState<{ open: boolean; slot: 'lunch' | 'dinner' | 'breakfast' } | null>(null);
+  const [addModalCategoryFilter, setAddModalCategoryFilter] = useState<string>('Todas');
 
   const monthIdx = selectedDate ? (parseInt(selectedDate.split('-')[1], 10) - 1) : new Date().getMonth();
   const currentMonthName = SPANISH_MONTHS[monthIdx] || 'este mes';
+
+  const modalCategories = React.useMemo(() => {
+    const cats = Array.from(
+      new Set([...(categories || []), ...recipes.map((r) => r.category).filter(Boolean)])
+    );
+    return ['Todas', ...cats];
+  }, [recipes, categories]);
+
+  const filteredModalRecipes = React.useMemo(() => {
+    if (addModalCategoryFilter === 'Todas') return recipes;
+    return recipes.filter((r) => r.category === addModalCategoryFilter);
+  }, [recipes, addModalCategoryFilter]);
 
   const currentDay: DayPlan = plan.days[selectedDate] || {
     date: selectedDate,
@@ -195,15 +210,29 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                   key={meal.id}
                   className="group relative bg-[#f8f9fa] rounded-xl border border-[#e1e3e4] overflow-hidden shadow-2xs hover:shadow-sm transition-all"
                 >
+                  {/* Highly accessible top-right delete button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveMeal('breakfast', meal.id);
+                    }}
+                    className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-white/95 hover:bg-white text-[#ba1a1a] shadow-xs hover:shadow-sm border border-[#e1e3e4] transition-all cursor-pointer flex items-center justify-center"
+                    title="Eliminar plato"
+                    aria-label="Eliminar plato"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+
                   {meal.imageUrl && (
                     <div
                       className="bg-cover bg-center w-full h-32"
                       style={{ backgroundImage: `url(${meal.imageUrl})` }}
                     />
                   )}
-                  <div className="p-3.5 flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold text-sm text-[#191c1d] truncate">
+                  <div className="p-3.5 flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-sm text-[#191c1d] truncate" title={meal.name}>
                         {meal.name}
                       </h4>
                       <div className="flex items-center gap-3 text-xs text-[#707973] mt-1">
@@ -219,9 +248,11 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                       </div>
                     </div>
                     <button
+                      type="button"
                       onClick={() => handleRemoveMeal('breakfast', meal.id)}
-                      className="opacity-60 group-hover:opacity-100 p-1.5 rounded-md hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
+                      className="shrink-0 p-1.5 rounded-md hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
                       title="Eliminar plato"
+                      aria-label="Eliminar plato"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -231,7 +262,10 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
             ) : (
               /* Empty Slot Dropzone */
               <button
-                onClick={() => setQuickAddModal({ open: true, slot: 'breakfast' })}
+                onClick={() => {
+                  setAddModalCategoryFilter('Todas');
+                  setQuickAddModal({ open: true, slot: 'breakfast' });
+                }}
                 className="flex-1 min-h-[160px] border-2 border-dashed border-[#bfc9c1] hover:border-[#0f5238] rounded-xl flex flex-col items-center justify-center text-[#707973] hover:text-[#0f5238] bg-[#f8f9fa]/60 hover:bg-[#b1f0ce]/10 transition-all cursor-pointer p-6 group"
               >
                 <div className="w-10 h-10 rounded-full bg-white shadow-2xs flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
@@ -261,7 +295,10 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
               </div>
             </div>
             <button
-              onClick={() => setQuickAddModal({ open: true, slot: 'lunch' })}
+              onClick={() => {
+                setAddModalCategoryFilter('Todas');
+                setQuickAddModal({ open: true, slot: 'lunch' });
+              }}
               className="text-xs font-semibold text-[#0f5238] hover:bg-[#b1f0ce]/30 p-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -277,15 +314,29 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                   key={meal.id}
                   className="group relative bg-[#f8f9fa] rounded-xl border border-[#e1e3e4] overflow-hidden shadow-2xs hover:shadow-sm transition-all"
                 >
+                  {/* Highly accessible top-right delete button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveMeal('lunch', meal.id);
+                    }}
+                    className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-white/95 hover:bg-white text-[#ba1a1a] shadow-xs hover:shadow-sm border border-[#e1e3e4] transition-all cursor-pointer flex items-center justify-center"
+                    title="Eliminar plato"
+                    aria-label="Eliminar plato"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+
                   {meal.imageUrl && (
                     <div
                       className="bg-cover bg-center w-full h-32"
                       style={{ backgroundImage: `url(${meal.imageUrl})` }}
                     />
                   )}
-                  <div className="p-3.5 flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold text-sm text-[#191c1d] truncate">
+                  <div className="p-3.5 flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-sm text-[#191c1d] truncate" title={meal.name}>
                         {meal.name}
                       </h4>
                       <div className="flex items-center gap-3 text-xs text-[#707973] mt-1">
@@ -301,9 +352,11 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                       </div>
                     </div>
                     <button
+                      type="button"
                       onClick={() => handleRemoveMeal('lunch', meal.id)}
-                      className="opacity-60 group-hover:opacity-100 p-1.5 rounded-md hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
+                      className="shrink-0 p-1.5 rounded-md hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
                       title="Eliminar plato"
+                      aria-label="Eliminar plato"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -313,7 +366,10 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
             ) : (
               /* Empty Slot Dropzone */
               <button
-                onClick={() => setQuickAddModal({ open: true, slot: 'lunch' })}
+                onClick={() => {
+                  setAddModalCategoryFilter('Todas');
+                  setQuickAddModal({ open: true, slot: 'lunch' });
+                }}
                 className="flex-1 min-h-[160px] border-2 border-dashed border-[#bfc9c1] hover:border-[#0f5238] rounded-xl flex flex-col items-center justify-center text-[#707973] hover:text-[#0f5238] bg-[#f8f9fa]/60 hover:bg-[#b1f0ce]/10 transition-all cursor-pointer p-6 group"
               >
                 <div className="w-10 h-10 rounded-full bg-white shadow-2xs flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
@@ -343,7 +399,10 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
               </div>
             </div>
             <button
-              onClick={() => setQuickAddModal({ open: true, slot: 'dinner' })}
+              onClick={() => {
+                setAddModalCategoryFilter('Todas');
+                setQuickAddModal({ open: true, slot: 'dinner' });
+              }}
               className="text-xs font-semibold text-[#0f5238] hover:bg-[#b1f0ce]/30 p-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -359,6 +418,20 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                   key={meal.id}
                   className="group relative bg-[#f8f9fa] rounded-xl border border-[#e1e3e4] overflow-hidden shadow-2xs hover:shadow-sm transition-all"
                 >
+                  {/* Highly accessible top-right delete button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveMeal('dinner', meal.id);
+                    }}
+                    className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-white/95 hover:bg-white text-[#ba1a1a] shadow-xs hover:shadow-sm border border-[#e1e3e4] transition-all cursor-pointer flex items-center justify-center"
+                    title="Eliminar plato"
+                    aria-label="Eliminar plato"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+
                   {meal.isSideDish ? (
                     // Compact side dish style
                     <div className="p-3 flex items-center gap-3">
@@ -372,7 +445,7 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                         <span className="text-[10px] uppercase font-bold text-[#0f5238] tracking-wider">
                           Acompañamiento
                         </span>
-                        <h4 className="font-semibold text-sm text-[#191c1d] truncate">
+                        <h4 className="font-semibold text-sm text-[#191c1d] truncate" title={meal.name}>
                           {meal.name}
                         </h4>
                         <div className="flex items-center gap-2 text-xs text-[#707973] mt-0.5">
@@ -382,9 +455,11 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                         </div>
                       </div>
                       <button
+                        type="button"
                         onClick={() => handleRemoveMeal('dinner', meal.id)}
-                        className="opacity-60 group-hover:opacity-100 p-1.5 rounded-md hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
+                        className="shrink-0 p-1.5 rounded-md hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
                         title="Eliminar"
+                        aria-label="Eliminar"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -398,9 +473,9 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                           style={{ backgroundImage: `url(${meal.imageUrl})` }}
                         />
                       )}
-                      <div className="p-3.5 flex items-center justify-between">
-                        <div>
-                          <h4 className="font-semibold text-sm text-[#191c1d] truncate">
+                      <div className="p-3.5 flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-sm text-[#191c1d] truncate" title={meal.name}>
                             {meal.name}
                           </h4>
                           <div className="flex items-center gap-3 text-xs text-[#707973] mt-1">
@@ -416,9 +491,11 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                           </div>
                         </div>
                         <button
+                          type="button"
                           onClick={() => handleRemoveMeal('dinner', meal.id)}
-                          className="opacity-60 group-hover:opacity-100 p-1.5 rounded-md hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
+                          className="shrink-0 p-1.5 rounded-md hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
                           title="Eliminar plato"
+                          aria-label="Eliminar plato"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -430,7 +507,10 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
             ) : (
               /* Empty Slot Dropzone */
               <button
-                onClick={() => setQuickAddModal({ open: true, slot: 'dinner' })}
+                onClick={() => {
+                  setAddModalCategoryFilter('Todas');
+                  setQuickAddModal({ open: true, slot: 'dinner' });
+                }}
                 className="flex-1 min-h-[160px] border-2 border-dashed border-[#bfc9c1] hover:border-[#0f5238] rounded-xl flex flex-col items-center justify-center text-[#707973] hover:text-[#0f5238] bg-[#f8f9fa]/60 hover:bg-[#b1f0ce]/10 transition-all cursor-pointer p-6 group"
               >
                 <div className="w-10 h-10 rounded-full bg-white shadow-2xs flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
@@ -488,40 +568,69 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
               </button>
             </div>
 
-            <p className="text-xs font-bold text-[#404943] uppercase tracking-wider">
-              Seleccionar del Recetario:
-            </p>
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <p className="text-xs font-bold text-[#404943] uppercase tracking-wider">
+                Filtrar por Categoría:
+              </p>
+              <span className="text-[11px] text-[#707973]">
+                {filteredModalRecipes.length} {filteredModalRecipes.length === 1 ? 'receta' : 'recetas'}
+              </span>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 custom-scrollbar">
+              {modalCategories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setAddModalCategoryFilter(cat)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                    addModalCategoryFilter === cat
+                      ? 'bg-[#0f5238] text-white shadow-2xs'
+                      : 'bg-[#f3f4f5] text-[#404943] hover:bg-[#e7e8e9]'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
 
             {/* Recipes Quick List */}
             <div className="overflow-y-auto space-y-2 flex-1 pr-1 custom-scrollbar">
-              {recipes.map((rec) => (
-                <div
-                  key={rec.id}
-                  onClick={() => handleAddMealToSlot(quickAddModal.slot, rec)}
-                  className="flex items-center gap-3 p-2.5 rounded-xl border border-[#e1e3e4] hover:border-[#0f5238] hover:bg-[#b1f0ce]/10 cursor-pointer transition-all"
-                >
-                  <img
-                    src={rec.imageUrl}
-                    alt={rec.name}
-                    className="w-14 h-14 rounded-lg object-cover border border-[#e1e3e4]"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-semibold text-[#191c1d] truncate">
-                      {rec.name}
-                    </h4>
-                    <div className="flex items-center gap-2 text-xs text-[#707973]">
-                      <span>{rec.category}</span>
-                      <span>•</span>
-                      <span>{rec.timeMinutes}m</span>
-                      <span>•</span>
-                      <span className="text-[#9b4500] font-medium">{rec.calories} kcal</span>
-                    </div>
-                  </div>
-                  <button className="px-3 py-1.5 bg-[#0f5238] hover:bg-[#2d6a4f] text-white text-xs font-semibold rounded-lg shrink-0">
-                    Elegir
-                  </button>
+              {filteredModalRecipes.length === 0 ? (
+                <div className="text-center py-8 text-xs text-[#707973] italic">
+                  No hay recetas disponibles en la categoría "{addModalCategoryFilter}".
                 </div>
-              ))}
+              ) : (
+                filteredModalRecipes.map((rec) => (
+                  <div
+                    key={rec.id}
+                    onClick={() => handleAddMealToSlot(quickAddModal.slot, rec)}
+                    className="flex items-center gap-3 p-2.5 rounded-xl border border-[#e1e3e4] hover:border-[#0f5238] hover:bg-[#b1f0ce]/10 cursor-pointer transition-all"
+                  >
+                    <img
+                      src={rec.imageUrl}
+                      alt={rec.name}
+                      className="w-14 h-14 rounded-lg object-cover border border-[#e1e3e4] shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-semibold text-[#191c1d] truncate">
+                        {rec.name}
+                      </h4>
+                      <div className="flex items-center gap-2 text-xs text-[#707973]">
+                        <span className="font-medium text-[#0f5238]">{rec.category}</span>
+                        <span>•</span>
+                        <span>{rec.timeMinutes}m</span>
+                        <span>•</span>
+                        <span className="text-[#9b4500] font-medium">{rec.calories} kcal</span>
+                      </div>
+                    </div>
+                    <button className="px-3 py-1.5 bg-[#0f5238] hover:bg-[#2d6a4f] text-white text-xs font-semibold rounded-lg shrink-0">
+                      Elegir
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

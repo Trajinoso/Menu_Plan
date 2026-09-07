@@ -31,6 +31,18 @@ import {
 import { getCurrentWeekDates } from './utils/dateHelpers';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
+const DEFAULT_CATEGORIES = [
+  'Proteico',
+  'Vegetariano',
+  'Rápido',
+  'Desayuno',
+  'Almuerzo',
+  'Cena',
+  'Postre',
+  'Snack',
+  'Gourmet'
+];
+
 export function App() {
   const [activeTab, setActiveTab] = useState<NavTab['id']>('weekly');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -85,7 +97,35 @@ export function App() {
     return INITIAL_AI_SETTINGS;
   });
 
+  const [categories, setCategories] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('mm_categories');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return DEFAULT_CATEGORIES;
+  });
+
   // Automatically sync to localStorage on changes
+  useEffect(() => {
+    try { localStorage.setItem('mm_categories', JSON.stringify(categories)); } catch (e) {}
+  }, [categories]);
+
+  const handleAddCategory = (newCat: string) => {
+    const trimmed = newCat.trim();
+    if (!trimmed) return;
+    if (!categories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      setCategories((prev) => [...prev, trimmed]);
+      showToast(`Categoría "${trimmed}" añadida.`);
+    }
+  };
+
+  const handleDeleteCategory = (catToDelete: string) => {
+    setCategories((prev) => prev.filter((c) => c.toLowerCase() !== catToDelete.toLowerCase()));
+    showToast(`Categoría "${catToDelete}" eliminada.`);
+  };
   useEffect(() => {
     try { localStorage.setItem('mm_recipes', JSON.stringify(recipes)); } catch (e) {}
   }, [recipes]);
@@ -659,6 +699,7 @@ export function App() {
             <WeeklyPlannerView
               plan={weeklyPlan}
               recipes={recipes}
+              categories={categories}
               onUpdatePlan={handleUpdateWeeklyPlan}
               onOpenAddRecipe={() => setActiveTab('add-recipe')}
               onOpenGenerateAI={() => setIsGenerateAIModalOpen(true)}
@@ -670,6 +711,7 @@ export function App() {
             <MonthlyView
               monthPlan={monthPlan}
               recipes={recipes}
+              categories={categories}
               onUpdateMonthPlan={handleUpdateMonthPlan}
               onAutofillEmpty={handleAutofillEmpty}
               isAutofilling={isAutofilling}
@@ -691,6 +733,9 @@ export function App() {
             <AddRecipeView
               onSaveRecipe={handleSaveNewRecipe}
               onCancel={() => setActiveTab('recipes')}
+              categories={categories}
+              onAddCategory={handleAddCategory}
+              onDeleteCategory={handleDeleteCategory}
             />
           )}
 
