@@ -28,6 +28,7 @@ import {
   INITIAL_GIT_CONFIG,
   INITIAL_AI_SETTINGS
 } from './data/initialData';
+import { getCurrentWeekDates } from './utils/dateHelpers';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 export function App() {
@@ -206,7 +207,14 @@ export function App() {
       category: recipe.category
     };
 
-    const slotKey: 'lunch' | 'dinner' = mealType === 'Cena' ? 'dinner' : 'lunch';
+    let slotKey: 'breakfast' | 'lunch' | 'dinner' = 'lunch';
+    if (mealType === 'Desayuno') {
+      slotKey = 'breakfast';
+    } else if (mealType === 'Cena') {
+      slotKey = 'dinner';
+    } else {
+      slotKey = 'lunch';
+    }
 
     // Optimistic state updates
     setWeeklyPlan((prev) => {
@@ -242,7 +250,7 @@ export function App() {
         ...prev,
         days: newDays,
         plannedMealsCount: (Object.values(newDays) as DayPlan[]).reduce(
-          (acc, d) => acc + (d.lunch?.length || 0) + (d.dinner?.length || 0),
+          (acc, d) => acc + (d.breakfast?.length || 0) + (d.lunch?.length || 0) + (d.dinner?.length || 0),
           0
         )
       };
@@ -311,14 +319,18 @@ export function App() {
   // Autofill empty slots with AI (or local catalog fallback if offline)
   const handleAutofillEmpty = async (year?: number, month?: number) => {
     setIsAutofilling(true);
+    const now = new Date();
+    const currentYear = year || now.getFullYear();
+    const currentMonth = month || (now.getMonth() + 1);
+
     try {
       const res = await fetch('/api/ai/autofill-empty', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetPlan: 'monthly',
-          year: year || 2023,
-          month: month || 10
+          year: currentYear,
+          month: currentMonth
         })
       });
       if (res.ok) {
@@ -337,8 +349,8 @@ export function App() {
     }
 
     // Client-side fallback if backend is offline or on GitHub Pages
-    const targetYear = year || 2023;
-    const targetMonth = month || 10;
+    const targetYear = currentYear;
+    const targetMonth = currentMonth;
     const daysInM = new Date(targetYear, targetMonth, 0).getDate();
     const prefix = `${targetYear}-${targetMonth.toString().padStart(2, '0')}`;
 
@@ -468,19 +480,34 @@ export function App() {
     }
   };
 
+  // Delete recipe from catalog
+  const handleDeleteRecipe = async (id: string) => {
+    setRecipes((prev) => prev.filter((r) => r.id !== id));
+    showToast('Receta eliminada del recetario', 'info');
+
+    try {
+      await fetch(`/api/recipes/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      // Backend offline or GitHub Pages: state persisted in localStorage
+    }
+  };
+
   // AI Generated plan applied to current weekly plan
   const handleAIPlanGenerated = (aiPlan: any) => {
     if (!aiPlan || !aiPlan.days) return;
 
     const newDays: Record<string, any> = {};
-    const baseDates = ['2023-10-12', '2023-10-13', '2023-10-14', '2023-10-15', '2023-10-16', '2023-10-17', '2023-10-18'];
+    const currentWeek = getCurrentWeekDates();
 
     aiPlan.days.forEach((day: any, idx: number) => {
-      const dateStr = baseDates[idx] || `2023-10-${12 + idx}`;
+      const weekDay = currentWeek[idx] || currentWeek[0];
+      const dateStr = weekDay.date;
       newDays[dateStr] = {
         date: dateStr,
-        dayName: day.dayName || 'Día',
-        dayNumber: 12 + idx,
+        dayName: day.dayName || weekDay.dayName,
+        dayNumber: weekDay.dayNumber,
         breakfast: day.breakfast ? [{
           id: `ai-b-${idx}`,
           name: day.breakfast.name,
@@ -656,6 +683,7 @@ export function App() {
               onOpenAddRecipe={() => setActiveTab('add-recipe')}
               onAssignRecipeToPlan={handleAssignRecipeToPlan}
               onOpenGenerateAI={() => setIsGenerateAIModalOpen(true)}
+              onDeleteRecipe={handleDeleteRecipe}
             />
           )}
 

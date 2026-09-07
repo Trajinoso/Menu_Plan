@@ -11,6 +11,7 @@ import {
   Utensils
 } from 'lucide-react';
 import { MonthPlan, DayPlan, Recipe, MealItem } from '../types';
+import { SPANISH_MONTHS, SPANISH_DAYS_FULL } from '../utils/dateHelpers';
 
 interface MonthlyViewProps {
   monthPlan: MonthPlan;
@@ -21,30 +22,8 @@ interface MonthlyViewProps {
   onOpenAddRecipe: () => void;
 }
 
-const MONTH_NAMES_ES = [
-  'Enero',
-  'Febrero',
-  'Marzo',
-  'Abril',
-  'Mayo',
-  'Junio',
-  'Julio',
-  'Agosto',
-  'Septiembre',
-  'Octubre',
-  'Noviembre',
-  'Diciembre'
-];
-
-const DAY_NAMES_ES = [
-  'Domingo',
-  'Lunes',
-  'Martes',
-  'Miércoles',
-  'Jueves',
-  'Viernes',
-  'Sábado'
-];
+const MONTH_NAMES_ES = SPANISH_MONTHS;
+const DAY_NAMES_ES = SPANISH_DAYS_FULL;
 
 export const MonthlyView: React.FC<MonthlyViewProps> = ({
   monthPlan,
@@ -54,8 +33,8 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({
   isAutofilling,
   onOpenAddRecipe,
 }) => {
-  // Navigation state: defaults to October 2023 to match existing plans, can navigate anywhere
-  const [currentDate, setCurrentDate] = useState<Date>(new Date(2023, 9, 1));
+  // Navigation state: defaults to current month, can navigate across months
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [selectedDayModal, setSelectedDayModal] = useState<DayPlan | null>(null);
   const [addingToMealType, setAddingToMealType] = useState<'lunch' | 'dinner' | null>(null);
 
@@ -98,9 +77,7 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({
   };
 
   const handleToday = () => {
-    // If already in current real month, go to October 2023 demo or real today
-    const realDate = new Date();
-    setCurrentDate(new Date(realDate.getFullYear(), realDate.getMonth(), 1));
+    setCurrentDate(new Date());
   };
 
   const getDayPlan = (dayNum: number): DayPlan => {
@@ -275,9 +252,7 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({
             {/* Current month days */}
             {daysInMonth.map((dayNum) => {
               const day = getDayPlan(dayNum);
-              const isToday =
-                (isActualCurrentMonth && dayNum === actualTodayDate) ||
-                (year === 2023 && month === 9 && dayNum === 4);
+              const isToday = isActualCurrentMonth && dayNum === actualTodayDate;
 
               const hasLunch = day.lunch && day.lunch.length > 0;
               const hasDinner = day.dinner && day.dinner.length > 0;
@@ -307,12 +282,7 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({
 
                     {/* Status indicator dots */}
                     <div className="flex gap-1 items-center">
-                      {isToday ? (
-                        <>
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#0f5238]" />
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#0f5238]" />
-                        </>
-                      ) : mealCount > 0 ? (
+                      {mealCount > 0 ? (
                         <>
                           {hasLunch && (
                             <span className="w-1.5 h-1.5 rounded-full bg-[#0f5238]" title="Almuerzo listo" />

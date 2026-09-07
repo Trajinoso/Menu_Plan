@@ -83,7 +83,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           Configuración y Sincronización
         </h2>
         <p className="text-xs md:text-sm text-[#707973] mt-0.5">
-          Gestiona tu repositorio Git descentralizado, credenciales y preferencias de IA
+          Configura la exportación de tus menús a Markdown, versionado Git y preferencias de IA
         </p>
       </div>
 
@@ -98,10 +98,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
               <div>
                 <h3 className="text-lg font-bold text-[#191c1d] font-heading">
-                  Repositorio Git
+                  Exportación y Repositorio Git
                 </h3>
                 <p className="text-xs text-[#707973]">
-                  Almacén descentralizado para tus menús y recetas en Markdown
+                  Exporta tus menús y recetas en Markdown/JSON limpios para versionar en tu repositorio
                 </p>
               </div>
             </div>
@@ -157,7 +157,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="flex items-center gap-2 text-xs text-[#707973] bg-[#f8f9fa] p-3 rounded-xl border border-[#e1e3e4]">
                 <Lock className="w-4 h-4 text-[#0f5238] shrink-0" />
                 <span>
-                  Los tokens se procesan de forma segura en el backend y se usan para serializar tus datos en Markdown.
+                  Los datos se serializan en formato Markdown y JSON listos para descargar o commitear a tu repositorio.
                 </span>
               </div>
 
@@ -257,15 +257,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#f8f9fa] border border-[#e1e3e4]">
               <span className="text-xs font-semibold text-[#404943]">Estado</span>
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0f5238]">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#0f5238] animate-pulse" />
-                {gitConfig.statusText || 'Conectado y Activo'}
+                <span className={`w-2.5 h-2.5 rounded-full ${gitConfig.isConnected ? 'bg-[#0f5238] animate-pulse' : 'bg-[#707973]'}`} />
+                {gitConfig.statusText || (gitConfig.isConnected ? 'Conectado y Activo' : 'Exportación Local')}
               </span>
             </div>
 
             <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#f8f9fa] border border-[#e1e3e4]">
               <span className="text-xs font-semibold text-[#404943]">Última Sincronización</span>
               <span className="text-xs font-medium text-[#191c1d]">
-                {gitConfig.lastSyncedAt || 'Hoy, 09:42 AM'}
+                {gitConfig.lastSyncedAt || 'No sincronizado'}
               </span>
             </div>
 
@@ -275,7 +275,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               className="w-full py-3 px-4 bg-[#fc8a40] hover:bg-[#9b4500] text-white font-bold text-xs md:text-sm rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 active:scale-98"
             >
               <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Sincronizando Archivos...' : 'Forzar Sincronización'}</span>
+              <span>{isSyncing ? 'Sincronizando Archivos...' : 'Exportar / Sincronizar'}</span>
             </button>
           </div>
 
@@ -287,7 +287,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <span>¿Cómo funciona?</span>
             </h3>
             <p className="text-xs text-[#b1f0ce] leading-relaxed">
-              MenuMaster utiliza Git como base de datos descentralizada. Tus recetas, planificadores y listas de la compra se serializan en archivos <strong>Markdown</strong> y <strong>JSON</strong> con formato limpio listos para versionar.
+              MenuMaster serializa tus recetas, planificadores y listas en archivos <strong>Markdown</strong> y <strong>JSON</strong> estandarizados. Puedes exportarlos y descargarlos localmente o guardarlos en tu propio repositorio Git para control de versiones.
             </p>
             <div className="pt-2">
               <button

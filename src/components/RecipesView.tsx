@@ -10,15 +10,18 @@ import {
   Sparkles,
   ChevronRight,
   Filter,
-  BookOpen
+  BookOpen,
+  Trash2
 } from 'lucide-react';
 import { Recipe, MealType } from '../types';
+import { getCurrentWeekDates } from '../utils/dateHelpers';
 
 interface RecipesViewProps {
   recipes: Recipe[];
   onOpenAddRecipe: () => void;
   onAssignRecipeToPlan: (recipe: Recipe, dates: string[], mealType: MealType) => void;
   onOpenGenerateAI: () => void;
+  onDeleteRecipe?: (id: string) => void;
 }
 
 export const RecipesView: React.FC<RecipesViewProps> = ({
@@ -26,13 +29,18 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
   onOpenAddRecipe,
   onAssignRecipeToPlan,
   onOpenGenerateAI,
+  onDeleteRecipe,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('Todos');
   const [assigningRecipe, setAssigningRecipe] = useState<Recipe | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // Dynamic current week dates
+  const currentWeek = getCurrentWeekDates();
 
   // For the Assign to Plan modal
-  const [selectedDays, setSelectedDays] = useState<string[]>(['2023-10-12']); // Default to Monday 12
+  const [selectedDays, setSelectedDays] = useState<string[]>(() => [currentWeek[0]?.date || '2023-10-12']);
   const [selectedMealType, setSelectedMealType] = useState<MealType>('Almuerzo');
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
 
@@ -56,15 +64,15 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
     return true;
   });
 
-  const weekDayOptions = [
-    { label: 'L', name: 'Lunes 12', date: '2023-10-12' },
-    { label: 'M', name: 'Martes 13', date: '2023-10-13' },
-    { label: 'X', name: 'Miércoles 14', date: '2023-10-14' },
-    { label: 'J', name: 'Jueves 15', date: '2023-10-15' },
-    { label: 'V', name: 'Viernes 16', date: '2023-10-16' },
-    { label: 'S', name: 'Sábado 17', date: '2023-10-17' },
-    { label: 'D', name: 'Domingo 18', date: '2023-10-18' },
-  ];
+  const weekDayOptions = currentWeek.map((w) => {
+    let letter = w.dayName.charAt(0).toUpperCase();
+    if (w.dayName.toLowerCase().startsWith('mi')) letter = 'X';
+    return {
+      label: letter,
+      name: `${w.dayName} ${w.dayNumber}`,
+      date: w.date
+    };
+  });
 
   const handleToggleDay = (dateStr: string) => {
     if (selectedDays.includes(dateStr)) {
@@ -198,14 +206,37 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
               </div>
 
               {/* Card Action */}
-              <div className="p-4 pt-0">
+              <div className="p-4 pt-0 flex items-center gap-2">
                 <button
                   onClick={() => setAssigningRecipe(recipe)}
-                  className="w-full bg-[#f8f9fa] hover:bg-[#0f5238] text-[#0f5238] hover:text-white border border-[#bfc9c1] hover:border-[#0f5238] font-semibold text-xs py-2.5 px-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98"
+                  className="flex-1 bg-[#f8f9fa] hover:bg-[#0f5238] text-[#0f5238] hover:text-white border border-[#bfc9c1] hover:border-[#0f5238] font-semibold text-xs py-2.5 px-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98"
                 >
                   <Plus className="w-4 h-4 stroke-[2.5]" />
                   <span>Añadir al Plan</span>
                 </button>
+                {onDeleteRecipe && (
+                  confirmDeleteId === recipe.id ? (
+                    <button
+                      onClick={() => {
+                        onDeleteRecipe(recipe.id);
+                        setConfirmDeleteId(null);
+                      }}
+                      title="Clic para confirmar eliminación"
+                      className="px-3 py-2.5 bg-[#ba1a1a] hover:bg-[#93000a] text-white rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0 animate-in fade-in"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>¿Borrar?</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(recipe.id)}
+                      title="Eliminar receta"
+                      className="p-2.5 text-[#707973] hover:text-[#ba1a1a] hover:bg-[#ffdad6]/40 border border-transparent hover:border-[#ba1a1a]/30 rounded-xl transition-all cursor-pointer shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )
+                )}
               </div>
             </div>
           ))}

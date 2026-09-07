@@ -10,6 +10,7 @@ import {
   CalendarDays
 } from 'lucide-react';
 import { NavTab } from '../types';
+import { SPANISH_MONTHS } from '../utils/dateHelpers';
 
 interface HeaderProps {
   title: string;
@@ -32,6 +33,9 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab,
   onSelectTab
 }) => {
+  const now = new Date();
+  const currentMonthYear = `${SPANISH_MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+
   return (
     <header className="flex justify-between items-center w-full px-4 md:px-8 h-16 z-30 bg-white/95 backdrop-blur-md border-b border-[#e1e3e4] sticky top-0 shrink-0">
       {/* Mobile Brand / Menu Button */}
@@ -60,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
         </h2>
         {activeTab === 'weekly' && (
           <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#b1f0ce] text-[#002114] border border-[#95d4b3]">
-            Octubre 2023
+            {currentMonthYear}
           </span>
         )}
       </div>

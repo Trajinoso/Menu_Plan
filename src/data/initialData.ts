@@ -1,4 +1,5 @@
-import { Recipe, WeeklyPlan, MonthPlan, HistoryArchiveItem, GitSyncConfig, AISettingsConfig } from '../types';
+import { Recipe, WeeklyPlan, MonthPlan, HistoryArchiveItem, GitSyncConfig, AISettingsConfig, DayPlan } from '../types';
+import { getCurrentWeekDates, formatMonthYear, formatWeekRange, getTodayISO } from '../utils/dateHelpers';
 
 export const INITIAL_RECIPES: Recipe[] = [
   {
@@ -288,17 +289,22 @@ export const INITIAL_RECIPES: Recipe[] = [
   }
 ];
 
+const currentWeek = getCurrentWeekDates();
+const weekStart = currentWeek[0].date;
+const weekEnd = currentWeek[6].date;
+const weekTitle = `Semana del ${formatWeekRange(weekStart, weekEnd)}`;
+
 export const INITIAL_WEEKLY_PLAN: WeeklyPlan = {
   id: 'week-current',
-  startDate: '2023-10-12',
-  endDate: '2023-10-18',
-  title: 'Semana del 12 al 18 de Octubre',
-  tags: ['Sabores de Otoño', 'Alto en Proteína'],
+  startDate: weekStart,
+  endDate: weekEnd,
+  title: weekTitle,
+  tags: ['Menú Semanal', 'Equilibrado'],
   days: {
-    '2023-10-12': {
-      date: '2023-10-12',
-      dayName: 'Lunes',
-      dayNumber: 12,
+    [currentWeek[0].date]: {
+      date: currentWeek[0].date,
+      dayName: currentWeek[0].dayName,
+      dayNumber: currentWeek[0].dayNumber,
       breakfast: [
         {
           id: 'm-1',
@@ -309,31 +315,31 @@ export const INITIAL_WEEKLY_PLAN: WeeklyPlan = {
           imageUrl: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=800&auto=format&fit=crop&q=80'
         }
       ],
-      lunch: [],
-      dinner: [
+      lunch: [
         {
           id: 'm-2',
+          recipeId: 'rec-3',
+          name: 'Bowl de Pollo Asado con Frijoles Negros y Maíz',
+          timeMinutes: 15,
+          calories: 380,
+          imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDsyA3hTcHACnNUcEz7Yg-kOrPFcZitwDWRodEL2hFpCTKCK2T7SgUTYEjEp7AEyw0W3AqO85SxnHEl5GzjQoRpdF9pdf5Kd1r-S0f-CQXegaWwbBHWWybPIb6znKcuGUM5I4p9c0AGpvA8myOZAkdx7cpGcEb1Q3Qm7VwttG4gtLAgeXn4FrTVPj5ZbCACGFWSuK57sWEz1csWfEB43dOV-Xa7CnKrMOsPye-cvR-ZSrxxx2W29GGV'
+        }
+      ],
+      dinner: [
+        {
+          id: 'm-3',
           recipeId: 'rec-1',
-          name: 'Salmón a la Plancha',
+          name: 'Salmón a la Plancha con Espárragos',
           timeMinutes: 35,
           calories: 620,
           imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBgTGnZnjsK70nGSrP-ENtWJxi04tJLoarv_LJrV4ue17CkKhLiyb_pFOfaDKXUQtZr6AMaC0P0jw2iOQcvBLqbmueU5nSRbZZqwLyD-PmoO7iG_xZ2Edu1B8Hwq2xV8jP5GoodCJt4jD_BDsGCYfxW0z0_wvhEtP_YkDuESpnQY2-tFVe-cGxpIxtp6LPVM9AtEGZzLtVuIok1BiltYmrAqjoPgeF1a6F_ZY_jYnp76OYV3Gb-rcSu'
-        },
-        {
-          id: 'm-3',
-          recipeId: 'rec-2',
-          name: 'Ensalada de la Casa',
-          timeMinutes: 5,
-          calories: 120,
-          isSideDish: true,
-          imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDsdJwCKsZpeHNtSdm8txnbrxNfFmjL-K_CLN8e4OENPv8lM80ciD64H6c-64BJ2K8lusxS9LZ4LxLS4zzgJ6H1s0zLHl6ZdGx2_Vuk1Mj3uT6eWNVHpGliVe6OUt81HtuRKlLJHIOjE8HoxHd8oaq2JdNL0WXgoVLd8T6fs7pZcKg3_1K9e8CkROlB7gxLiwSkZ9kUYlYJuntMCI0SrTCFVJcE_ZrD8FqxGeoClsVe6DQVC-mJTA3t'
         }
       ]
     },
-    '2023-10-13': {
-      date: '2023-10-13',
-      dayName: 'Martes',
-      dayNumber: 13,
+    [currentWeek[1].date]: {
+      date: currentWeek[1].date,
+      dayName: currentWeek[1].dayName,
+      dayNumber: currentWeek[1].dayNumber,
       breakfast: [
         {
           id: 'm-4',
@@ -346,28 +352,28 @@ export const INITIAL_WEEKLY_PLAN: WeeklyPlan = {
       lunch: [
         {
           id: 'm-5',
-          recipeId: 'rec-3',
-          name: 'Bowl de Pollo Asado',
-          timeMinutes: 15,
-          calories: 380,
-          imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDsyA3hTcHACnNUcEz7Yg-kOrPFcZitwDWRodEL2hFpCTKCK2T7SgUTYEjEp7AEyw0W3AqO85SxnHEl5GzjQoRpdF9pdf5Kd1r-S0f-CQXegaWwbBHWWybPIb6znKcuGUM5I4p9c0AGpvA8myOZAkdx7cpGcEb1Q3Qm7VwttG4gtLAgeXn4FrTVPj5ZbCACGFWSuK57sWEz1csWfEB43dOV-Xa7CnKrMOsPye-cvR-ZSrxxx2W29GGV'
+          recipeId: 'rec-5',
+          name: 'Ensalada Mediterránea de Garbanzos',
+          timeMinutes: 10,
+          calories: 320,
+          imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBj7xZ-cmJFsGcKBeMUI-ep5rtjsKQv3AlIBCZbuFEmIG-l783V5iiL47XaZZxKnC16sayll3x90LqgDd6_DkdGARJcShOpiih_fWUOfjy45ML-sVnZU9tJvmrWTy78s0xbLX8hYXlf2SGYLR7ehOdTnyhy2aJ4zFV7HU1HEAP-oxDKj6yIh47gSSXd88Kq7AFP-hAn5DHPo5kHgn0sabG0xoC_K0N0FZVGfyDFl00qHpbVr8jiU4dE'
         }
       ],
       dinner: [
         {
           id: 'm-6',
           recipeId: 'rec-4',
-          name: 'Crema Rústica de Calabaza',
+          name: 'Crema Rústica de Calabaza Asada',
           timeMinutes: 25,
           calories: 290,
           imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAT6EdnW4sWsMk5IFVwsog_IY2H9PL_b5N1JOcnZXtEAeHkZcQm_SCnAEHdloKi1K-RoMWaW4Mi9rWJeYh7SvMye0DElUwx8MZSbF4_gEEos-qjwkL5KIOsRUzueJj5o9MjwlPqQaevMmYtl98bkOB3s_fwRokmcJQNHdoic01Nz4JLOBqPSJa8S5VpPNOVxuixiuTLPNHWDT8DJKLZwymmY3xrWNzQgW00kHI3fTVHCaJscxaR_ivL'
         }
       ]
     },
-    '2023-10-14': {
-      date: '2023-10-14',
-      dayName: 'Miércoles',
-      dayNumber: 14,
+    [currentWeek[2].date]: {
+      date: currentWeek[2].date,
+      dayName: currentWeek[2].dayName,
+      dayNumber: currentWeek[2].dayNumber,
       breakfast: [],
       lunch: [
         {
@@ -390,52 +396,52 @@ export const INITIAL_WEEKLY_PLAN: WeeklyPlan = {
         }
       ]
     },
-    '2023-10-15': {
-      date: '2023-10-15',
-      dayName: 'Jueves',
-      dayNumber: 15,
+    [currentWeek[3].date]: {
+      date: currentWeek[3].date,
+      dayName: currentWeek[3].dayName,
+      dayNumber: currentWeek[3].dayNumber,
       breakfast: [],
       lunch: [
         {
           id: 'm-9',
-          recipeId: 'rec-5',
-          name: 'Ensalada Mediterránea de Garbanzos',
-          timeMinutes: 10,
-          calories: 320,
-          imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBj7xZ-cmJFsGcKBeMUI-ep5rtjsKQv3AlIBCZbuFEmIG-l783V5iiL47XaZZxKnC16sayll3x90LqgDd6_DkdGARJcShOpiih_fWUOfjy45ML-sVnZU9tJvmrWTy78s0xbLX8hYXlf2SGYLR7ehOdTnyhy2aJ4zFV7HU1HEAP-oxDKj6yIh47gSSXd88Kq7AFP-hAn5DHPo5kHgn0sabG0xoC_K0N0FZVGfyDFl00qHpbVr8jiU4dE'
-        }
-      ],
-      dinner: []
-    },
-    '2023-10-16': {
-      date: '2023-10-16',
-      dayName: 'Viernes',
-      dayNumber: 16,
-      breakfast: [],
-      lunch: [],
-      dinner: [
-        {
-          id: 'm-10',
           recipeId: 'rec-6',
           name: 'Risotto de Setas Silvestres',
           timeMinutes: 30,
           calories: 510,
           imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAkPO7r9JqQ0fSQ9F2dAp39sjJD1V-jsj_0wk1wECyUZHvNvFAOu9v28iShdzK5Uptad0bG8i0KdqGl7H-u_WUsnabd19tqZGB2H2IH9PVTH-rsr8JFsrvsPPLdZmR4_k4NOOPBMS_Pf796ERAeryieqPCmV8eSxC91AuZJSpTndboZ2HGmK1jLQiFF0dncoV4_n6DEd1FKBpuzZdzMmQgjCu6nAddrzVe3xp4cbb9t-UIA4xbpyoty'
         }
+      ],
+      dinner: []
+    },
+    [currentWeek[4].date]: {
+      date: currentWeek[4].date,
+      dayName: currentWeek[4].dayName,
+      dayNumber: currentWeek[4].dayNumber,
+      breakfast: [],
+      lunch: [],
+      dinner: [
+        {
+          id: 'm-10',
+          recipeId: 'rec-10',
+          name: 'Pechuga a la Plancha con Espárragos',
+          timeMinutes: 20,
+          calories: 440,
+          imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDoXlejA7N7pLhKK0E9hP6DXJ8u8XBkifeHgL7Ky7UMPrhz3ZihN0l9ucXznoy9SID4dBT5rq8g0sPQikY3vLPRDWWurWA_SspytboI5xFHv494y2cSm_6YJWECf28c7xS_yG2Ga-1lGJo3AgK1XlD0FajGtMk_H6KGZInsRQaho3Ui6QttB6MBekwfk-ZGCjNk1of2Q-Kt0T_IK6oajBqq4d5w0vk1Vf5AbXAv56q0L4yre3kXJiSH'
+        }
       ]
     },
-    '2023-10-17': {
-      date: '2023-10-17',
-      dayName: 'Sábado',
-      dayNumber: 17,
+    [currentWeek[5].date]: {
+      date: currentWeek[5].date,
+      dayName: currentWeek[5].dayName,
+      dayNumber: currentWeek[5].dayNumber,
       breakfast: [],
       lunch: [],
       dinner: []
     },
-    '2023-10-18': {
-      date: '2023-10-18',
-      dayName: 'Domingo',
-      dayNumber: 18,
+    [currentWeek[6].date]: {
+      date: currentWeek[6].date,
+      dayName: currentWeek[6].dayName,
+      dayNumber: currentWeek[6].dayNumber,
       breakfast: [],
       lunch: [],
       dinner: []
@@ -443,153 +449,63 @@ export const INITIAL_WEEKLY_PLAN: WeeklyPlan = {
   }
 };
 
-export const INITIAL_MONTH_PLAN: MonthPlan = {
-  monthKey: '2023-10',
-  monthName: 'Octubre 2023',
-  plannedMealsCount: 45,
-  totalMealSlots: 90,
-  avgDailyKcal: 2200,
-  days: {
-    '2023-10-01': {
-      date: '2023-10-01',
-      dayName: 'Domingo',
-      dayNumber: 1,
-      breakfast: [{ id: 'o1', name: 'Avena y Frutas', timeMinutes: 8, calories: 310 }],
-      lunch: [{ id: 'o2', name: 'Ensalada de Pollo', timeMinutes: 15, calories: 420 }],
-      dinner: [{ id: 'o3', name: 'Salmón con Quinoa', timeMinutes: 30, calories: 580 }],
-      tags: ['Bajo Límite', 'Alta Proteína']
-    },
-    '2023-10-02': {
-      date: '2023-10-02',
-      dayName: 'Lunes',
-      dayNumber: 2,
-      breakfast: [{ id: 'o4', name: 'Batido de Proteínas', timeMinutes: 5, calories: 260 }],
-      lunch: [],
-      dinner: [{ id: 'o5', name: 'Filete y Espárragos', timeMinutes: 20, calories: 480 }]
-    },
-    '2023-10-03': {
-      date: '2023-10-03',
-      dayName: 'Martes',
-      dayNumber: 3,
-      breakfast: [],
-      lunch: [],
-      dinner: []
-    },
-    '2023-10-04': {
-      date: '2023-10-04',
-      dayName: 'Miércoles',
-      dayNumber: 4,
-      breakfast: [{ id: 'o6', name: 'Tostada de Aguacate', timeMinutes: 10, calories: 290 }],
-      lunch: [{ id: 'o7', name: 'Sopa de Lentejas', timeMinutes: 35, calories: 380 }],
-      dinner: [{ id: 'o8', name: 'Salteado de Tofu', timeMinutes: 20, calories: 340 }]
-    },
-    '2023-10-05': {
-      date: '2023-10-05',
-      dayName: 'Jueves',
-      dayNumber: 5,
-      breakfast: [],
-      lunch: [{ id: 'o9', name: 'Plan de Comidas A', timeMinutes: 15, calories: 400 }],
-      dinner: []
-    },
-    '2023-10-10': {
-      date: '2023-10-10',
-      dayName: 'Martes',
-      dayNumber: 10,
-      breakfast: [],
-      lunch: [{ id: 'o10', name: 'Plan de Comidas A', timeMinutes: 20, calories: 450 }],
-      dinner: []
-    },
-    '2023-10-15': {
-      date: '2023-10-15',
-      dayName: 'Domingo',
-      dayNumber: 15,
-      breakfast: [],
-      lunch: [{ id: 'o11', name: 'Plan de Comidas A', timeMinutes: 20, calories: 450 }],
-      dinner: []
-    },
-    '2023-10-20': {
-      date: '2023-10-20',
-      dayName: 'Viernes',
-      dayNumber: 20,
-      breakfast: [],
-      lunch: [{ id: 'o12', name: 'Plan de Comidas A', timeMinutes: 20, calories: 450 }],
-      dinner: []
-    },
-    '2023-10-25': {
-      date: '2023-10-25',
-      dayName: 'Miércoles',
-      dayNumber: 25,
-      breakfast: [],
-      lunch: [{ id: 'o13', name: 'Plan de Comidas A', timeMinutes: 20, calories: 450 }],
-      dinner: []
-    },
-    '2023-10-30': {
-      date: '2023-10-30',
-      dayName: 'Lunes',
-      dayNumber: 30,
-      breakfast: [],
-      lunch: [{ id: 'o14', name: 'Plan de Comidas A', timeMinutes: 20, calories: 450 }],
-      dinner: []
-    }
+const now = new Date();
+const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+const currentMonthName = formatMonthYear(now);
+
+// Sembrar los días de la semana actual en el plan mensual
+const initialMonthDays: Record<string, DayPlan> = {};
+currentWeek.forEach((cw) => {
+  const weeklyDay = INITIAL_WEEKLY_PLAN.days[cw.date];
+  if (weeklyDay) {
+    initialMonthDays[cw.date] = { ...weeklyDay };
   }
+});
+
+export const INITIAL_MONTH_PLAN: MonthPlan = {
+  monthKey: currentMonthKey,
+  monthName: currentMonthName,
+  plannedMealsCount: Object.values(initialMonthDays).reduce((acc, d) => acc + (d.lunch?.length || 0) + (d.dinner?.length || 0), 0),
+  totalMealSlots: 60,
+  avgDailyKcal: 2050,
+  days: initialMonthDays
 };
 
 export const INITIAL_HISTORY: HistoryArchiveItem[] = [
   {
     id: 'hist-1',
-    title: 'Semana del 12 al 18 de Octubre',
-    startDate: '2023-10-12',
-    endDate: '2023-10-18',
-    tags: ['Sabores de Otoño', 'Alto en Proteína'],
-    recipeCount: 14,
+    title: weekTitle,
+    startDate: weekStart,
+    endDate: weekEnd,
+    tags: ['Semana en Curso', 'Equilibrado'],
+    recipeCount: 8,
     totalDays: 7,
     previewRecipes: [
-      {
-        name: 'Sopa de Calabaza',
-        imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAT6EdnW4sWsMk5IFVwsog_IY2H9PL_b5N1JOcnZXtEAeHkZcQm_SCnAEHdloKi1K-RoMWaW4Mi9rWJeYh7SvMye0DElUwx8MZSbF4_gEEos-qjwkL5KIOsRUzueJj5o9MjwlPqQaevMmYtl98bkOB3s_fwRokmcJQNHdoic01Nz4JLOBqPSJa8S5VpPNOVxuixiuTLPNHWDT8DJKLZwymmY3xrWNzQgW00kHI3fTVHCaJscxaR_ivL'
-      },
       {
         name: 'Salmón a la Plancha',
-        imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDoXlejA7N7pLhKK0E9hP6DXJ8u8XBkifeHgL7Ky7UMPrhz3ZihN0l9ucXznoy9SID4dBT5rq8g0sPQikY3vLPRDWWurWA_SspytboI5xFHv494y2cSm_6YJWECf28c7xS_yG2Ga-1lGJo3AgK1XlD0FajGtMk_H6KGZInsRQaho3Ui6QttB6MBekwfk-ZGCjNk1of2Q-Kt0T_IK6oajBqq4d5w0vk1Vf5AbXAv56q0L4yre3kXJiSH'
-      }
-    ],
-    createdAt: '2023-10-19',
-    planData: INITIAL_WEEKLY_PLAN
-  },
-  {
-    id: 'hist-2',
-    title: 'Semana del 5 al 11 de Octubre',
-    startDate: '2023-10-05',
-    endDate: '2023-10-11',
-    tags: ['Comidas Rápidas', 'Vegetariano'],
-    recipeCount: 11,
-    totalDays: 7,
-    previewRecipes: [
-      {
-        name: 'Ensalada de Garbanzos',
-        imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBj7xZ-cmJFsGcKBeMUI-ep5rtjsKQv3AlIBCZbuFEmIG-l783V5iiL47XaZZxKnC16sayll3x90LqgDd6_DkdGARJcShOpiih_fWUOfjy45ML-sVnZU9tJvmrWTy78s0xbLX8hYXlf2SGYLR7ehOdTnyhy2aJ4zFV7HU1HEAP-oxDKj6yIh47gSSXd88Kq7AFP-hAn5DHPo5kHgn0sabG0xoC_K0N0FZVGfyDFl00qHpbVr8jiU4dE'
+        imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBgTGnZnjsK70nGSrP-ENtWJxi04tJLoarv_LJrV4ue17CkKhLiyb_pFOfaDKXUQtZr6AMaC0P0jw2iOQcvBLqbmueU5nSRbZZqwLyD-PmoO7iG_xZ2Edu1B8Hwq2xV8jP5GoodCJt4jD_BDsGCYfxW0z0_wvhEtP_YkDuESpnQY2-tFVe-cGxpIxtp6LPVM9AtEGZzLtVuIok1BiltYmrAqjoPgeF1a6F_ZY_jYnp76OYV3Gb-rcSu'
       },
       {
-        name: 'Risotto de Setas',
-        imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAkPO7r9JqQ0fSQ9F2dAp39sjJD1V-jsj_0wk1wECyUZHvNvFAOu9v28iShdzK5Uptad0bG8i0KdqGl7H-u_WUsnabd19tqZGB2H2IH9PVTH-rsr8JFsrvsPPLdZmR4_k4NOOPBMS_Pf796ERAeryieqPCmV8eSxC91AuZJSpTndboZ2HGmK1jLQiFF0dncoV4_n6DEd1FKBpuzZdzMmQgjCu6nAddrzVe3xp4cbb9t-UIA4xbpyoty'
+        name: 'Bowl de Pollo Asado',
+        imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDsyA3hTcHACnNUcEz7Yg-kOrPFcZitwDWRodEL2hFpCTKCK2T7SgUTYEjEp7AEyw0W3AqO85SxnHEl5GzjQoRpdF9pdf5Kd1r-S0f-CQXegaWwbBHWWybPIb6znKcuGUM5I4p9c0AGpvA8myOZAkdx7cpGcEb1Q3Qm7VwttG4gtLAgeXn4FrTVPj5ZbCACGFWSuK57sWEz1csWfEB43dOV-Xa7CnKrMOsPye-cvR-ZSrxxx2W29GGV'
       }
     ],
-    createdAt: '2023-10-12',
+    createdAt: getTodayISO(),
     planData: INITIAL_WEEKLY_PLAN
   }
 ];
 
 export const INITIAL_GIT_CONFIG: GitSyncConfig = {
-  repoUrl: 'https://github.com/usuario/planes-comida.git',
+  repoUrl: '',
   branch: 'main',
-  token: 'ghp_sampleTokenSecured12345',
-  isConnected: true,
-  lastSyncedAt: 'Hoy, 09:42 AM',
-  statusText: 'Conectado y Activo'
+  token: '',
+  isConnected: false,
+  lastSyncedAt: null,
+  statusText: 'No sincronizado'
 };
 
 export const INITIAL_AI_SETTINGS: AISettingsConfig = {
-  hasApiKey: true,
+  hasApiKey: false,
   systemInstruction: 'Extraer solo los datos reales, calcular calorías estimadas precisas y formatear ingredientes con medidas exactas en español.',
   preferredDiet: 'Equilibrada con alto contenido proteico',
   targetDailyCalories: 2200

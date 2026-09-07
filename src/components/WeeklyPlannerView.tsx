@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   Sun,
   Moon,
+  Coffee,
   Plus,
   PlusCircle,
   Timer,
@@ -16,6 +17,7 @@ import {
   Share2
 } from 'lucide-react';
 import { WeeklyPlan, DayPlan, MealItem, Recipe } from '../types';
+import { SPANISH_MONTHS, getTodayISO } from '../utils/dateHelpers';
 
 interface WeeklyPlannerViewProps {
   plan: WeeklyPlan;
@@ -35,8 +37,11 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
   onNavigateToMonthly,
 }) => {
   const dayKeys = Object.keys(plan.days || {});
-  const [selectedDate, setSelectedDate] = useState<string>(dayKeys[0] || '2023-10-12');
+  const [selectedDate, setSelectedDate] = useState<string>(() => dayKeys[0] || getTodayISO());
   const [quickAddModal, setQuickAddModal] = useState<{ open: boolean; slot: 'lunch' | 'dinner' | 'breakfast' } | null>(null);
+
+  const monthIdx = selectedDate ? (parseInt(selectedDate.split('-')[1], 10) - 1) : new Date().getMonth();
+  const currentMonthName = SPANISH_MONTHS[monthIdx] || 'este mes';
 
   const currentDay: DayPlan = plan.days[selectedDate] || {
     date: selectedDate,
@@ -126,7 +131,7 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
           {dayKeys.map((dateKey) => {
             const day = plan.days[dateKey];
             const isSelected = selectedDate === dateKey;
-            const hasMeals = (day.lunch?.length > 0) || (day.dinner?.length > 0);
+            const hasMeals = (day.breakfast?.length > 0) || (day.lunch?.length > 0) || (day.dinner?.length > 0);
 
             return (
               <button
@@ -155,8 +160,90 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
         </div>
       </div>
 
-      {/* Meals Grid (Lunch & Dinner Columns) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[520px]">
+      {/* Meals Grid (Breakfast, Lunch & Dinner Columns) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[520px]">
+        {/* Breakfast Column (Desayuno) */}
+        <div className="flex flex-col gap-3 bg-white p-5 rounded-2xl shadow-xs border border-[#e1e3e4]">
+          <div className="flex items-center justify-between pb-3 border-b border-[#e1e3e4]">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-[#f9a825]/15 text-[#b26a00]">
+                <Coffee className="w-5 h-5" />
+              </span>
+              <div>
+                <h3 className="text-lg font-bold text-[#191c1d] font-heading">
+                  Desayuno
+                </h3>
+                <span className="text-xs text-[#707973]">
+                  {currentDay.dayName}, {currentDay.dayNumber} de {currentMonthName}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setQuickAddModal({ open: true, slot: 'breakfast' })}
+              className="text-xs font-semibold text-[#0f5238] hover:bg-[#b1f0ce]/30 p-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Añadir</span>
+            </button>
+          </div>
+
+          {/* Meals list */}
+          <div className="space-y-3 flex-1 flex flex-col justify-start">
+            {currentDay.breakfast && currentDay.breakfast.length > 0 ? (
+              currentDay.breakfast.map((meal) => (
+                <div
+                  key={meal.id}
+                  className="group relative bg-[#f8f9fa] rounded-xl border border-[#e1e3e4] overflow-hidden shadow-2xs hover:shadow-sm transition-all"
+                >
+                  {meal.imageUrl && (
+                    <div
+                      className="bg-cover bg-center w-full h-32"
+                      style={{ backgroundImage: `url(${meal.imageUrl})` }}
+                    />
+                  )}
+                  <div className="p-3.5 flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-sm text-[#191c1d] truncate">
+                        {meal.name}
+                      </h4>
+                      <div className="flex items-center gap-3 text-xs text-[#707973] mt-1">
+                        <span className="flex items-center gap-1">
+                          <Timer className="w-3.5 h-3.5 text-[#0f5238]" />
+                          {meal.timeMinutes}m
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Flame className="w-3.5 h-3.5 text-[#9b4500]" />
+                          {meal.calories} kcal
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveMeal('breakfast', meal.id)}
+                      className="opacity-60 group-hover:opacity-100 p-1.5 rounded-md hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
+                      title="Eliminar plato"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              /* Empty Slot Dropzone */
+              <button
+                onClick={() => setQuickAddModal({ open: true, slot: 'breakfast' })}
+                className="flex-1 min-h-[160px] border-2 border-dashed border-[#bfc9c1] hover:border-[#0f5238] rounded-xl flex flex-col items-center justify-center text-[#707973] hover:text-[#0f5238] bg-[#f8f9fa]/60 hover:bg-[#b1f0ce]/10 transition-all cursor-pointer p-6 group"
+              >
+                <div className="w-10 h-10 rounded-full bg-white shadow-2xs flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                  <PlusCircle className="w-6 h-6 text-[#0f5238]" />
+                </div>
+                <span className="font-semibold text-sm">Añadir Receta al Desayuno</span>
+                <span className="text-xs text-[#707973] mt-0.5">Café, tostadas, bowls, fruta...</span>
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Lunch Column (Almuerzo) */}
         <div className="flex flex-col gap-3 bg-white p-5 rounded-2xl shadow-xs border border-[#e1e3e4]">
           <div className="flex items-center justify-between pb-3 border-b border-[#e1e3e4]">
@@ -169,7 +256,7 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                   Almuerzo
                 </h3>
                 <span className="text-xs text-[#707973]">
-                  {currentDay.dayName}, {currentDay.dayNumber} de Octubre
+                  {currentDay.dayName}, {currentDay.dayNumber} de {currentMonthName}
                 </span>
               </div>
             </div>
@@ -251,7 +338,7 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                   Cena
                 </h3>
                 <span className="text-xs text-[#707973]">
-                  {currentDay.dayName}, {currentDay.dayNumber} de Octubre
+                  {currentDay.dayName}, {currentDay.dayNumber} de {currentMonthName}
                 </span>
               </div>
             </div>
@@ -367,7 +454,7 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                   Añadir al {quickAddModal.slot === 'lunch' ? 'Almuerzo' : quickAddModal.slot === 'dinner' ? 'Cena' : 'Desayuno'}
                 </h3>
                 <p className="text-xs text-[#707973]">
-                  {currentDay.dayName}, {currentDay.dayNumber} de Octubre
+                  {currentDay.dayName}, {currentDay.dayNumber} de {currentMonthName}
                 </p>
               </div>
               <button

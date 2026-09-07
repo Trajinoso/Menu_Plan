@@ -95,7 +95,13 @@ app.get("/api/health", (_req, res) => {
 
 // Full state bootstrap
 app.get("/api/data", (_req, res) => {
-  res.json(db);
+  res.json({
+    ...db,
+    aiSettings: {
+      ...db.aiSettings,
+      hasApiKey: Boolean(process.env.GEMINI_API_KEY)
+    }
+  });
 });
 
 // Recipes CRUD
@@ -238,12 +244,19 @@ app.post("/api/history/:id/load", (req, res) => {
 });
 
 // Settings CRUD
+app.get("/api/settings/ai", (_req, res) => {
+  res.json({
+    ...db.aiSettings,
+    hasApiKey: Boolean(process.env.GEMINI_API_KEY)
+  });
+});
+
 app.post("/api/settings/git", (req, res) => {
   db.gitConfig = {
     ...db.gitConfig,
     ...req.body,
-    isConnected: Boolean(req.body.repoUrl && req.body.token),
-    statusText: req.body.repoUrl ? "Conectado y Activo" : "No Conectado"
+    isConnected: Boolean(req.body.repoUrl),
+    statusText: req.body.repoUrl ? "Repositorio configurado" : "No configurado"
   };
   saveDatabase(db);
   res.json(db.gitConfig);
@@ -259,7 +272,7 @@ app.post("/api/settings/ai", (req, res) => {
   res.json(db.aiSettings);
 });
 
-// Git Synchronization and serialization
+// Git Export & Local Serialization (exports local markdown/json)
 app.post("/api/git/sync", (_req, res) => {
   const now = new Date();
   const timestampStr = now.toLocaleDateString("es-ES", {
@@ -273,8 +286,10 @@ app.post("/api/git/sync", (_req, res) => {
 
   // Generate serialized Markdown representation
   let markdown = `# MenuMaster - Sincronización de Plan de Comidas\n\n`;
-  markdown += `*Última sincronización:* ${timestampStr}\n`;
-  markdown += `*Repositorio:* \`${db.gitConfig.repoUrl}\` | *Rama:* \`${db.gitConfig.branch}\`\n\n`;
+  markdown += `*Última exportación:* ${timestampStr}\n`;
+  if (db.gitConfig.repoUrl) {
+    markdown += `*Repositorio de referencia:* \`${db.gitConfig.repoUrl}\` | *Rama:* \`${db.gitConfig.branch || "main"}\`\n\n`;
+  }
   markdown += `## 📅 Plan Semanal Actual: ${db.weeklyPlan.title}\n`;
   markdown += `**Etiquetas:** ${db.weeklyPlan.tags.join(", ")}\n\n`;
 
@@ -318,8 +333,7 @@ app.post("/api/git/sync", (_req, res) => {
   fs.writeFileSync(jsonFile, JSON.stringify(db, null, 2), "utf-8");
 
   db.gitConfig.lastSyncedAt = `Hoy, ${now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`;
-  db.gitConfig.isConnected = true;
-  db.gitConfig.statusText = "Conectado y Activo";
+  db.gitConfig.statusText = "Archivos locales exportados";
   saveDatabase(db);
 
   res.json({
@@ -478,7 +492,10 @@ Para cada día, proporciona Desayuno, Almuerzo y Cena, con recetas reales, tiemp
 // AI Auto-Fill Empty slots in monthly or weekly calendar
 app.post("/api/ai/autofill-empty", async (req, res) => {
   try {
-    const { targetPlan = "monthly", year = 2023, month = 10 } = req.body;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const { targetPlan = "monthly", year = currentYear, month = currentMonth } = req.body;
     const ai = getGeminiClient();
 
     const response = await ai.models.generateContent({
@@ -508,8 +525,8 @@ app.post("/api/ai/autofill-empty", async (req, res) => {
 
     if (targetPlan === "monthly") {
       let sugIdx = 0;
-      const targetYear = Number(year) || 2023;
-      const targetMonth = Number(month) || 10;
+      const targetYear = Number(year) || currentYear;
+      const targetMonth = Number(month) || currentMonth;
       const totalDays = new Date(targetYear, targetMonth, 0).getDate();
 
       for (let i = 1; i <= totalDays; i++) {
