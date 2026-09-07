@@ -1,0 +1,6 @@
+{
+  "name": "MenuMaster",
+  "description": "Planificador de menús semanal y mensual, recetario inteligente con IA, sincronización Git e historial de comidas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
