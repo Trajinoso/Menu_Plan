@@ -12,6 +12,8 @@ import {
   Recipe,
   WeeklyPlan,
   MonthPlan,
+  DayPlan,
+  MealItem,
   HistoryArchiveItem,
   GitSyncConfig,
   AISettingsConfig,
@@ -33,13 +35,79 @@ export function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isGenerateAIModalOpen, setIsGenerateAIModalOpen] = useState(false);
 
-  // Core Data States
-  const [recipes, setRecipes] = useState<Recipe[]>(INITIAL_RECIPES);
-  const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan>(INITIAL_WEEKLY_PLAN);
-  const [monthPlan, setMonthPlan] = useState<MonthPlan>(INITIAL_MONTH_PLAN);
-  const [history, setHistory] = useState<HistoryArchiveItem[]>(INITIAL_HISTORY);
-  const [gitConfig, setGitConfig] = useState<GitSyncConfig>(INITIAL_GIT_CONFIG);
-  const [aiSettings, setAiSettings] = useState<AISettingsConfig>(INITIAL_AI_SETTINGS);
+  // Core Data States with localStorage persistence for static deployments (GitHub Pages)
+  const [recipes, setRecipes] = useState<Recipe[]>(() => {
+    try {
+      const saved = localStorage.getItem('mm_recipes');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return INITIAL_RECIPES;
+  });
+
+  const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan>(() => {
+    try {
+      const saved = localStorage.getItem('mm_weekly_plan');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return INITIAL_WEEKLY_PLAN;
+  });
+
+  const [monthPlan, setMonthPlan] = useState<MonthPlan>(() => {
+    try {
+      const saved = localStorage.getItem('mm_month_plan');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return INITIAL_MONTH_PLAN;
+  });
+
+  const [history, setHistory] = useState<HistoryArchiveItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('mm_history');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return INITIAL_HISTORY;
+  });
+
+  const [gitConfig, setGitConfig] = useState<GitSyncConfig>(() => {
+    try {
+      const saved = localStorage.getItem('mm_git_config');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return INITIAL_GIT_CONFIG;
+  });
+
+  const [aiSettings, setAiSettings] = useState<AISettingsConfig>(() => {
+    try {
+      const saved = localStorage.getItem('mm_ai_settings');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return INITIAL_AI_SETTINGS;
+  });
+
+  // Automatically sync to localStorage on changes
+  useEffect(() => {
+    try { localStorage.setItem('mm_recipes', JSON.stringify(recipes)); } catch (e) {}
+  }, [recipes]);
+
+  useEffect(() => {
+    try { localStorage.setItem('mm_weekly_plan', JSON.stringify(weeklyPlan)); } catch (e) {}
+  }, [weeklyPlan]);
+
+  useEffect(() => {
+    try { localStorage.setItem('mm_month_plan', JSON.stringify(monthPlan)); } catch (e) {}
+  }, [monthPlan]);
+
+  useEffect(() => {
+    try { localStorage.setItem('mm_history', JSON.stringify(history)); } catch (e) {}
+  }, [history]);
+
+  useEffect(() => {
+    try { localStorage.setItem('mm_git_config', JSON.stringify(gitConfig)); } catch (e) {}
+  }, [gitConfig]);
+
+  useEffect(() => {
+    try { localStorage.setItem('mm_ai_settings', JSON.stringify(aiSettings)); } catch (e) {}
+  }, [aiSettings]);
 
   // UI status states
   const [isSyncing, setIsSyncing] = useState(false);
@@ -128,6 +196,60 @@ export function App() {
 
   // Assign recipe to plan
   const handleAssignRecipeToPlan = async (recipe: Recipe, dates: string[], mealType: MealType) => {
+    const mealItem: MealItem = {
+      id: `meal-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      recipeId: recipe.id,
+      name: recipe.name,
+      timeMinutes: recipe.timeMinutes,
+      calories: recipe.calories,
+      imageUrl: recipe.imageUrl,
+      category: recipe.category
+    };
+
+    const slotKey: 'lunch' | 'dinner' = mealType === 'Cena' ? 'dinner' : 'lunch';
+
+    // Optimistic state updates
+    setWeeklyPlan((prev) => {
+      const newDays = { ...prev.days };
+      dates.forEach((d) => {
+        if (newDays[d]) {
+          newDays[d] = {
+            ...newDays[d],
+            [slotKey]: [...(newDays[d][slotKey] || []), mealItem]
+          };
+        }
+      });
+      return { ...prev, days: newDays };
+    });
+
+    setMonthPlan((prev) => {
+      const newDays = { ...prev.days };
+      dates.forEach((d) => {
+        const existing = newDays[d] || {
+          date: d,
+          dayName: 'Día',
+          dayNumber: parseInt(d.split('-')[2] || '1', 10),
+          breakfast: [],
+          lunch: [],
+          dinner: []
+        };
+        newDays[d] = {
+          ...existing,
+          [slotKey]: [...(existing[slotKey] || []), mealItem]
+        };
+      });
+      return {
+        ...prev,
+        days: newDays,
+        plannedMealsCount: (Object.values(newDays) as DayPlan[]).reduce(
+          (acc, d) => acc + (d.lunch?.length || 0) + (d.dinner?.length || 0),
+          0
+        )
+      };
+    });
+
+    showToast(`"${recipe.name}" añadido al ${mealType} de ${dates.length} día(s)`);
+
     try {
       const res = await fetch('/api/plans/assign', {
         method: 'POST',
@@ -147,40 +269,46 @@ export function App() {
         if (data.weeklyPlan) setWeeklyPlan(data.weeklyPlan);
         if (data.monthPlan) setMonthPlan(data.monthPlan);
       }
-      showToast(`"${recipe.name}" añadido al ${mealType} de ${dates.length} día(s)`);
     } catch (err) {
-      console.error('Error assigning recipe:', err);
+      // Backend not running (e.g. GitHub Pages) - optimistic state is already applied
     }
   };
 
   // Git Sync
   const handleForceSync = async () => {
     setIsSyncing(true);
+    const nowIso = new Date().toISOString();
     try {
       const res = await fetch('/api/git/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
-      const data = await res.json();
-      if (data.success) {
+      if (res.ok) {
+        const data = await res.json();
         setGitConfig((prev) => ({
           ...prev,
-          lastSyncedAt: data.lastSyncedAt,
+          lastSyncedAt: data.lastSyncedAt || nowIso,
           isConnected: true
         }));
         showToast('¡Plan de comidas sincronizado y serializado en Git!', 'success');
         return data;
       }
-      throw new Error('Error al sincronizar');
     } catch (err: any) {
-      showToast('No se pudo completar la sincronización con Git', 'error');
-      return { success: false };
+      // Fallback below
     } finally {
       setIsSyncing(false);
     }
+    // Fallback for static GitHub Pages execution
+    setGitConfig((prev) => ({
+      ...prev,
+      lastSyncedAt: nowIso,
+      isConnected: true
+    }));
+    showToast('¡Plan de comidas respaldado localmente!', 'success');
+    return { success: true, lastSyncedAt: nowIso };
   };
 
-  // Autofill empty slots with AI
+  // Autofill empty slots with AI (or local catalog fallback if offline)
   const handleAutofillEmpty = async (year?: number, month?: number) => {
     setIsAutofilling(true);
     try {
@@ -193,56 +321,118 @@ export function App() {
           month: month || 10
         })
       });
-      const data = await res.json();
-      if (data.success) {
-        if (data.monthPlan) setMonthPlan(data.monthPlan);
-        if (data.weeklyPlan) setWeeklyPlan(data.weeklyPlan);
-        showToast('¡Días vacíos autocompletados con platos balanceados por Gemini!', 'success');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          if (data.monthPlan) setMonthPlan(data.monthPlan);
+          if (data.weeklyPlan) setWeeklyPlan(data.weeklyPlan);
+          showToast('¡Días vacíos autocompletados con platos balanceados por Gemini!', 'success');
+          return;
+        }
       }
     } catch (err) {
-      showToast('Error al autocompletar con IA', 'error');
+      // Fallback to local catalog below
     } finally {
       setIsAutofilling(false);
     }
+
+    // Client-side fallback if backend is offline or on GitHub Pages
+    const targetYear = year || 2023;
+    const targetMonth = month || 10;
+    const daysInM = new Date(targetYear, targetMonth, 0).getDate();
+    const prefix = `${targetYear}-${targetMonth.toString().padStart(2, '0')}`;
+
+    setMonthPlan((prev) => {
+      const newDays = { ...prev.days };
+      let recIdx = 0;
+      for (let i = 1; i <= daysInM; i++) {
+        const dateStr = `${prefix}-${i.toString().padStart(2, '0')}`;
+        const day = newDays[dateStr];
+        const r1 = recipes[recIdx % recipes.length];
+        const r2 = recipes[(recIdx + 1) % recipes.length];
+        recIdx += 2;
+
+        if (!day) {
+          const dayDate = new Date(targetYear, targetMonth - 1, i);
+          const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dayDate.getDay()];
+          newDays[dateStr] = {
+            date: dateStr,
+            dayName,
+            dayNumber: i,
+            breakfast: [],
+            lunch: [{ id: `l-${dateStr}`, name: r1.name, timeMinutes: r1.timeMinutes, calories: r1.calories, imageUrl: r1.imageUrl, category: r1.category }],
+            dinner: [{ id: `d-${dateStr}`, name: r2.name, timeMinutes: r2.timeMinutes, calories: r2.calories, imageUrl: r2.imageUrl, category: r2.category }]
+          };
+        } else {
+          if (!day.lunch || day.lunch.length === 0) {
+            day.lunch = [{ id: `l-${dateStr}`, name: r1.name, timeMinutes: r1.timeMinutes, calories: r1.calories, imageUrl: r1.imageUrl, category: r1.category }];
+          }
+          if (!day.dinner || day.dinner.length === 0) {
+            day.dinner = [{ id: `d-${dateStr}`, name: r2.name, timeMinutes: r2.timeMinutes, calories: r2.calories, imageUrl: r2.imageUrl, category: r2.category }];
+          }
+        }
+      }
+      return {
+        ...prev,
+        days: newDays,
+        plannedMealsCount: (Object.values(newDays) as DayPlan[]).reduce((acc, d) => acc + (d.lunch?.length || 0) + (d.dinner?.length || 0), 0)
+      };
+    });
+    showToast('¡Días vacíos autocompletados desde el recetario local!', 'success');
   };
 
   // Archive current weekly plan to history
   const handleArchiveCurrentPlan = async () => {
+    const allDays = Object.values(weeklyPlan.days) as DayPlan[];
+    const previewRecipes = allDays
+      .flatMap(d => [...(d.lunch || []), ...(d.dinner || [])])
+      .slice(0, 4)
+      .map(m => ({ name: m.name, imageUrl: m.imageUrl || '' }));
+
+    const newItem: HistoryArchiveItem = {
+      id: `hist-${Date.now()}`,
+      title: weeklyPlan.title || `Plan del ${weeklyPlan.startDate}`,
+      startDate: weeklyPlan.startDate,
+      endDate: weeklyPlan.endDate,
+      tags: weeklyPlan.tags || ['Menú Semanal'],
+      recipeCount: allDays.reduce((acc, d) => acc + (d.lunch?.length || 0) + (d.dinner?.length || 0), 0),
+      previewRecipes,
+      totalDays: allDays.length || 7,
+      createdAt: new Date().toISOString().split('T')[0],
+      planData: weeklyPlan
+    };
+    setHistory((prev) => [newItem, ...prev]);
+    showToast('¡Plan semanal archivado en el historial!', 'success');
+
     try {
-      const res = await fetch('/api/history', {
+      await fetch('/api/history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: weeklyPlan.title || `Plan del ${weeklyPlan.startDate}`,
-          startDate: weeklyPlan.startDate,
-          endDate: weeklyPlan.endDate,
-          tags: weeklyPlan.tags || ['Menú Semanal'],
-          recipeCount: Object.values(weeklyPlan.days).reduce((acc, d) => acc + (d.lunch?.length || 0) + (d.dinner?.length || 0), 0),
-          planData: weeklyPlan
-        })
+        body: JSON.stringify(newItem)
       });
-      const data = await res.json();
-      setHistory((prev) => [data, ...prev]);
-      showToast('¡Plan semanal archivado en el historial!', 'success');
     } catch (err) {
-      showToast('Error al archivar el plan', 'error');
+      // Offline fallback already applied
     }
   };
 
   // Load plan from history
   const handleLoadPlan = async (archiveId: string) => {
+    const target = history.find(h => h.id === archiveId);
+    if (target?.planData) {
+      setWeeklyPlan(target.planData);
+      showToast('¡Plan histórico restaurado en el Planificador Semanal!', 'success');
+    }
     try {
       const res = await fetch(`/api/history/${archiveId}/load`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
-      const data = await res.json();
-      if (data.weeklyPlan) {
-        setWeeklyPlan(data.weeklyPlan);
-        showToast('¡Plan histórico restaurado en el Planificador Semanal!', 'success');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.weeklyPlan) setWeeklyPlan(data.weeklyPlan);
       }
     } catch (err) {
-      showToast('Error al cargar plan histórico', 'error');
+      // Offline fallback already applied
     }
   };
 

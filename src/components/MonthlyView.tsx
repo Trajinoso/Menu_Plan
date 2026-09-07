@@ -187,7 +187,7 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({
   };
 
   // Planned stats for the currently viewed month
-  const plannedInCurrentMonth = Object.entries(monthPlan.days || {})
+  const plannedInCurrentMonth = (Object.entries(monthPlan.days || {}) as [string, DayPlan][])
     .filter(([date]) => date.startsWith(monthKeyPrefix))
     .reduce((acc, [, d]) => acc + (d.lunch?.length || 0) + (d.dinner?.length || 0), 0);
 
