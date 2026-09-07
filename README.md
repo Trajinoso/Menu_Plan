@@ -23,7 +23,7 @@
 ## 🌟 Descripción General
 
 MenuMaster elimina la fricción de pensar qué cocinar cada día mediante una interfaz limpia y fluida, diseñada con altos estándares de accesibilidad y contraste:
-- Organiza tus comidas principales (**Almuerzo y Cena**) de manera semanal o en una vista panorámica mensual.
+- Organiza tus comidas diarias (**Desayuno, Almuerzo y Cena**) de manera semanal o en una vista panorámica mensual.
 - Integra inteligencia artificial con **Gemini 3.7 Flash** para extraer ingredientes/pasos de recetas a partir de URLs o notas sueltas, generar menús completos ajustados a objetivos calóricos y autocompletar huecos vacíos en el calendario.
 - Permite respaldar tu plan de comidas en un repositorio Git propio, serializando los datos en archivos **Markdown** legibles y estructurados.
 
@@ -32,22 +32,23 @@ MenuMaster elimina la fricción de pensar qué cocinar cada día mediante una in
 ## ✨ Características Principales
 
 ### 1. 📅 Planificador Semanal Interactivo
-- Vista horizontal por días (Lunes a Domingo) con desglose de turnos: **Almuerzo** y **Cena**.
-- Muestra el tiempo de preparación, calorías estimadas e imágenes descriptivas de cada receta.
-- Acciones rápidas para eliminar, sustituir o añadir platos desde el recetario central.
-- Métricas nutricionales y balance diario.
+- Vista horizontal por días (Lunes a Domingo) con desglose de franjas horarias: **Desayuno**, **Almuerzo** y **Cena** (con soporte para platos principales y acompañamientos).
+- Métricas nutricionales en tiempo real: tiempo de preparación, calorías estimadas e imágenes descriptivas.
+- **Gestión y borrado accesible:** Botón directo de eliminación en cada plato con protección contra desbordamientos para títulos largos de recetas.
+- **Añadido rápido con filtro por categoría:** Modal interactivo para seleccionar recetas del recetario con píldoras de filtrado por categoría (*Todas*, *Proteico*, *Vegetariano*, *Rápido*, etc.) y contador de platos disponibles.
 
 ### 2. 🗓️ Vista Mensual y Navegación Dinámica
-- Matriz de calendario mensual enfocada en las dos comidas centrales (**Almuerzo** y **Cena**).
+- Matriz de calendario mensual con soporte para comidas principales (**Almuerzo** y **Cena**).
 - **Navegación intermensual:** Controles intuitivos (`<`, `Hoy`, `>`) para desplazarse a cualquier mes y año en tiempo real.
 - Marcadores de estado visuales en cada celda para verificar días planificados o pendientes.
-- Modal detallado por día para añadir, previsualizar o remover recetas de los turnos de comida.
+- Modal detallado por día para añadir, previsualizar o remover recetas con **filtro instantáneo por categorías**.
 - Botón de **Autocompletar Vacíos con IA** para rellenar automáticamente los días sin planificar del mes en curso.
 
-### 3. 📖 Recetario Inteligente y Asignador Multi-Día
+### 3. 📖 Recetario Inteligente y Gestión de Categorías
 - Catálogo interactivo con buscador instantáneo por nombre o ingrediente.
-- Filtros por categoría: *Altos en Proteína*, *Vegetarianos*, *Comidas Rápidas (<20 min)*, *Gourmet*, etc.
+- **Gestión dinámica de categorías:** Añade nuevas categorías personalizadas o elimina categorías existentes en 1 clic directamente desde el formulario de recetas, con persistencia automática en `localStorage`.
 - Modal **"Añadir al Plan"**: programa una receta seleccionando uno o múltiples días del calendario en un solo paso.
+- **Formulario de receta limpio por defecto:** Registro desde cero sin datos de ejemplo precargados, con previsualización reactiva de imagen y selector de presets.
 
 ### 4. 🪄 Integración con Gemini AI (`@google/genai`)
 - **Extractor de Recetas:** Analiza enlaces web o texto libre y extrae automáticamente título, tiempo, porciones, calorías, categoría, lista de ingredientes cuantificados e instrucciones paso a paso.
