@@ -858,6 +858,7 @@ export function App() {
               plan={weeklyPlan}
               recipes={recipes}
               categories={categories}
+              monthDays={monthPlan.days}
               onUpdatePlan={handleUpdateWeeklyPlan}
               onOpenAddRecipe={handleOpenAddRecipe}
               onOpenGenerateAI={() => setIsGenerateAIModalOpen(true)}

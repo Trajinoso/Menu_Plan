@@ -395,15 +395,15 @@ app.post("/api/git/sync", (_req, res) => {
 
   Object.values(db.weeklyPlan.days || {}).forEach(day => {
     markdown += `### ${day.dayName} (${day.date})\n`;
-    if (day.breakfast.length > 0) {
+    if (day.breakfast && day.breakfast.length > 0) {
       markdown += `- **Desayuno:** ` + day.breakfast.map(m => `${m.name} (${m.calories} kcal, ${m.timeMinutes} min)`).join(" + ") + `\n`;
     }
-    if (day.lunch.length > 0) {
+    if (day.lunch && day.lunch.length > 0) {
       markdown += `- **Almuerzo:** ` + day.lunch.map(m => `${m.name} (${m.calories} kcal, ${m.timeMinutes} min)`).join(" + ") + `\n`;
     } else {
       markdown += `- **Almuerzo:** *(Sin planificar)*\n`;
     }
-    if (day.dinner.length > 0) {
+    if (day.dinner && day.dinner.length > 0) {
       markdown += `- **Cena:** ` + day.dinner.map(m => `${m.name} (${m.calories} kcal, ${m.timeMinutes} min)`).join(" + ") + `\n`;
     } else {
       markdown += `- **Cena:** *(Sin planificar)*\n`;
@@ -447,23 +447,27 @@ app.post("/api/git/sync", (_req, res) => {
 
 // ---------------- GEMINI AI ENDPOINTS ----------------
 
-// Helper to call Gemini with automatic fallback models and retry on 503/429
+// Helper to call Gemini with automatic fallback models and retry on transient errors
 const CANDIDATE_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-pro"
+  "gemini-3.8-flash",
+  "gemini-flash-latest",
+  "gemini-3.1-flash-lite",
+  "gemini-3.1-pro-preview"
 ];
 
 function formatAiErrorMessage(err: any): string {
   const msg = err?.message || "";
-  if (msg.includes("GEMINI_API_KEY no está configurada") || msg.includes("API Key")) {
-    return "La clave GEMINI_API_KEY no está configurada. Por favor, añádela en la configuración de Google AI Studio.";
+  if (msg.includes("GEMINI_API_KEY no está configurada") || msg.includes("API Key") || msg.includes("API_KEY_INVALID")) {
+    return "La clave GEMINI_API_KEY no está configurada o no es válida. Por favor, revísala en la configuración.";
   }
   if (msg.includes("503") || msg.includes("high demand") || msg.includes("UNAVAILABLE")) {
-    return "Los modelos de IA están experimentando una alta demanda temporal en los servidores de Google. Por favor, inténtalo de nuevo en unos segundos.";
+    return "Los modelos de IA están experimentando una alta demanda temporal en los servidores de Google. Por favor, inténtalo de nuevo en unos momentos.";
   }
-  if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
+  if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota") || msg.includes("rate-limits")) {
     return "Se ha alcanzado temporalmente el límite de peticiones de IA. Por favor, espera un momento antes de volver a intentarlo.";
+  }
+  if (msg.includes("404") || msg.includes("NOT_FOUND") || msg.includes("no longer available")) {
+    return "El modelo de IA solicitado no está disponible temporalmente. Por favor, inténtalo de nuevo.";
   }
   return err?.message || "Error al procesar la solicitud con IA. Por favor, inténtalo de nuevo.";
 }
@@ -484,20 +488,40 @@ async function callGeminiWithFallback(ai: GoogleGenAI, request: { contents: any;
         lastError = err;
         const errMsg = err?.message || "";
         const status = err?.status || err?.code;
-        const isTransient =
-          status === 503 ||
-          status === 429 ||
-          errMsg.includes("503") ||
-          errMsg.includes("429") ||
-          errMsg.includes("high demand") ||
-          errMsg.includes("UNAVAILABLE") ||
-          errMsg.includes("RESOURCE_EXHAUSTED");
 
-        if (isTransient) {
-          console.warn(`Gemini model ${modelName} transient issue (attempt ${attempt + 1}):`, errMsg);
-          await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+        const isQuota =
+          status === 429 ||
+          errMsg.includes("429") ||
+          errMsg.includes("RESOURCE_EXHAUSTED") ||
+          errMsg.includes("quota");
+
+        const isUnavailable =
+          status === 503 ||
+          errMsg.includes("503") ||
+          errMsg.includes("high demand") ||
+          errMsg.includes("UNAVAILABLE");
+
+        const isNotFound =
+          status === 404 ||
+          errMsg.includes("404") ||
+          errMsg.includes("NOT_FOUND") ||
+          errMsg.includes("no longer available");
+
+        console.warn(`Gemini model ${modelName} encountered issue (attempt ${attempt + 1}):`, errMsg);
+
+        if (isNotFound || isQuota) {
+          // Immediately try the next candidate model
+          break;
+        }
+
+        if (isUnavailable) {
+          if (attempt === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } else {
+            break;
+          }
         } else {
-          // If not transient, try next model or throw
+          // If not a transient/model error, try next or stop
           break;
         }
       }

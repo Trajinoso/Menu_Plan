@@ -129,3 +129,21 @@ export function getDayNameFromISO(dateStr: string): string {
   const d = new Date(parts[0], parts[1] - 1, parts[2]);
   return SPANISH_DAYS_FULL[d.getDay()] || 'Día';
 }
+
+/**
+ * Convierte un string ISO YYYY-MM-DD a objeto Date local sin desfases de huso horario UTC
+ */
+export function parseISOLocal(dateStr: string): Date {
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length < 3 || isNaN(parts[0])) return new Date();
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+/**
+ * Añade o resta días a una fecha
+ */
+export function addDaysToDate(d: Date, days: number): Date {
+  const result = new Date(d);
+  result.setDate(result.getDate() + days);
+  return result;
+}
