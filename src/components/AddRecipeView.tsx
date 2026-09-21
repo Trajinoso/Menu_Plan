@@ -82,23 +82,12 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
     }
   }, [recipeToEdit]);
 
-  // Category management state
-  const DEFAULT_INITIAL_CATEGORIES = [
-    'Proteico',
-    'Vegetariano',
-    'Rápido',
-    'Desayuno',
-    'Almuerzo',
-    'Cena',
-    'Postre',
-    'Snack',
-    'Gourmet'
-  ];
-  const [localCategories, setLocalCategories] = useState<string[]>(DEFAULT_INITIAL_CATEGORIES);
+  // Category management state (no initial example categories)
+  const [localCategories, setLocalCategories] = useState<string[]>([]);
   const [newCategoryInput, setNewCategoryInput] = useState('');
   const [showCategoryManager, setShowCategoryManager] = useState(false);
 
-  const availableCategories = categories && categories.length > 0 ? categories : localCategories;
+  const availableCategories = categories !== undefined ? categories : localCategories;
 
   const handleAddNewCategory = () => {
     const trimmed = newCategoryInput.trim();
@@ -195,7 +184,7 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
       .map((s) => s.replace(/^\d+\.\s*/, '').trim())
       .filter((s) => s.length > 0);
 
-    const chosenCategory = category.trim() || availableCategories[0] || 'General';
+    const chosenCategory = category.trim() || (availableCategories.length > 0 ? availableCategories[0] : '');
     const numMinutes = timeMinutes ? Number(timeMinutes) : 20;
     const numCalories = calories ? Number(calories) : 350;
     const numServings = servings ? Number(servings) : 1;
@@ -208,7 +197,7 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
       servings: numServings,
       category: chosenCategory,
       difficulty,
-      tags: [chosenCategory, difficulty, `${numMinutes}m`],
+      tags: [chosenCategory, difficulty, `${numMinutes}m`].filter(Boolean),
       imageUrl: imageUrl.trim() || 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=800&auto=format&fit=crop&q=80',
       ingredients: ingredients.filter((i) => i.trim().length > 0),
       instructions: instructionsArray,
@@ -294,9 +283,18 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
         </div>
 
         {extractError && (
-          <div className="p-2.5 rounded-lg bg-[#ffdad6] text-[#ba1a1a] text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{extractError}</span>
+          <div className="p-3 rounded-xl bg-[#ffdad6] text-[#ba1a1a] text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-[#ba1a1a]/20">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{extractError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleExtractWithAI}
+              className="self-start sm:self-auto px-3 py-1 bg-white hover:bg-[#ffdad6] border border-[#ba1a1a]/40 rounded-lg text-xs font-semibold text-[#ba1a1a] cursor-pointer transition-colors"
+            >
+              Reintentar
+            </button>
           </div>
         )}
       </div>
@@ -462,38 +460,44 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
             </div>
 
             {/* List of categories with delete icon */}
-            <div className="flex flex-wrap gap-2">
-              {availableCategories.map((cat) => (
-                <span
-                  key={cat}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                    category === cat
-                      ? 'bg-[#b1f0ce]/60 border-[#0f5238] text-[#0f5238]'
-                      : 'bg-white border-[#bfc9c1] text-[#404943]'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setCategory(cat)}
-                    className="cursor-pointer hover:underline"
-                    title={`Seleccionar ${cat}`}
+            {availableCategories.length === 0 ? (
+              <p className="text-xs text-[#707973] italic py-1">
+                No hay categorías creadas aún. Escribe un nombre abajo y pulsa Añadir para crear tu primera categoría.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {availableCategories.map((cat) => (
+                  <span
+                    key={cat}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                      category === cat
+                        ? 'bg-[#b1f0ce]/60 border-[#0f5238] text-[#0f5238]'
+                        : 'bg-white border-[#bfc9c1] text-[#404943]'
+                    }`}
                   >
-                    {cat}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteCategoryItem(cat);
-                    }}
-                    title={`Eliminar categoría ${cat}`}
-                    className="p-0.5 rounded hover:bg-[#ffdad6] text-[#ba1a1a] transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
+                    <button
+                      type="button"
+                      onClick={() => setCategory(cat)}
+                      className="cursor-pointer hover:underline"
+                      title={`Seleccionar ${cat}`}
+                    >
+                      {cat}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCategoryItem(cat);
+                      }}
+                      title={`Eliminar categoría ${cat}`}
+                      className="p-0.5 rounded hover:bg-[#ffdad6] text-[#ba1a1a] transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Add new category form */}
             <div className="flex gap-2 pt-1">

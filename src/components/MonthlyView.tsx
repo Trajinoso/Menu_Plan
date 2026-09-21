@@ -58,10 +58,11 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({
   const monthFormatted = (month + 1).toString().padStart(2, '0');
   const monthKeyPrefix = `${year}-${monthFormatted}`;
 
-  const daysOfWeek = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+  const daysOfWeek = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
 
-  // Calendar matrix calculations
-  const firstDayOfWeekIndex = new Date(year, month, 1).getDay(); // 0 = Sunday
+  // Calendar matrix calculations (semana empieza en Lunes: 0 = LUN, 6 = DOM)
+  const rawFirstDayOfWeek = new Date(year, month, 1).getDay(); // JS getDay: 0 = Domingo, 1 = Lunes
+  const firstDayOfWeekIndex = (rawFirstDayOfWeek + 6) % 7;
   const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
   const daysInPreviousMonth = new Date(year, month, 0).getDate();
 

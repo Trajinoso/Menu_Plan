@@ -31,17 +31,31 @@ import {
 import { getCurrentWeekDates } from './utils/dateHelpers';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
-const DEFAULT_CATEGORIES = [
-  'Proteico',
-  'Vegetariano',
-  'Rápido',
-  'Desayuno',
-  'Almuerzo',
-  'Cena',
-  'Postre',
-  'Snack',
-  'Gourmet'
-];
+// Limpieza automática de recetas y categorías de ejemplo previas
+try {
+  if (typeof window !== 'undefined' && !localStorage.getItem('mm_cleared_sample_data_v4')) {
+    const savedRecs = localStorage.getItem('mm_recipes');
+    if (savedRecs) {
+      const parsed = JSON.parse(savedRecs);
+      if (Array.isArray(parsed) && parsed.some((r: any) => /^rec-([1-9]|10)$/.test(r.id))) {
+        localStorage.removeItem('mm_recipes');
+        localStorage.removeItem('mm_weekly_plan');
+        localStorage.removeItem('mm_month_plan');
+        localStorage.removeItem('mm_history');
+      }
+    }
+    const savedCats = localStorage.getItem('mm_categories');
+    if (savedCats) {
+      const parsedCats = JSON.parse(savedCats);
+      if (Array.isArray(parsedCats) && (parsedCats.includes('Proteico') || parsedCats.includes('Vegetariano'))) {
+        localStorage.removeItem('mm_categories');
+      }
+    }
+    localStorage.setItem('mm_cleared_sample_data_v4', 'true');
+  }
+} catch (e) {}
+
+const DEFAULT_CATEGORIES: string[] = [];
 
 export function App() {
   const [activeTab, setActiveTab] = useState<NavTab['id']>('weekly');
@@ -119,14 +133,24 @@ export function App() {
     const trimmed = newCat.trim();
     if (!trimmed) return;
     if (!categories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
-      setCategories((prev) => [...prev, trimmed]);
+      const updated = [...categories, trimmed];
+      setCategories(updated);
       showToast(`Categoría "${trimmed}" añadida.`);
+      fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: trimmed })
+      }).catch(() => {});
     }
   };
 
   const handleDeleteCategory = (catToDelete: string) => {
-    setCategories((prev) => prev.filter((c) => c.toLowerCase() !== catToDelete.toLowerCase()));
+    const updated = categories.filter((c) => c.toLowerCase() !== catToDelete.toLowerCase());
+    setCategories(updated);
     showToast(`Categoría "${catToDelete}" eliminada.`);
+    fetch(`/api/categories/${encodeURIComponent(catToDelete)}`, {
+      method: 'DELETE'
+    }).catch(() => {});
   };
   useEffect(() => {
     try { localStorage.setItem('mm_recipes', JSON.stringify(recipes)); } catch (e) {}
@@ -178,6 +202,7 @@ export function App() {
         if (data.history) setHistory(data.history);
         if (data.gitConfig) setGitConfig(data.gitConfig);
         if (data.aiSettings) setAiSettings(data.aiSettings);
+        if (Array.isArray(data.categories)) setCategories(data.categories);
       })
       .catch((err) => {
         console.warn('Using local bootstrap initial data:', err);
@@ -855,6 +880,7 @@ export function App() {
           {activeTab === 'recipes' && (
             <RecipesView
               recipes={recipes}
+              categories={categories}
               onOpenAddRecipe={handleOpenAddRecipe}
               onAssignRecipeToPlan={handleAssignRecipeToPlan}
               onOpenGenerateAI={() => setIsGenerateAIModalOpen(true)}

@@ -22,6 +22,7 @@ import { getCurrentWeekDates } from '../utils/dateHelpers';
 
 interface RecipesViewProps {
   recipes: Recipe[];
+  categories?: string[];
   onOpenAddRecipe: () => void;
   onAssignRecipeToPlan: (recipe: Recipe, dates: string[], mealType: MealType) => void;
   onOpenGenerateAI: () => void;
@@ -31,6 +32,7 @@ interface RecipesViewProps {
 
 export const RecipesView: React.FC<RecipesViewProps> = ({
   recipes,
+  categories = [],
   onOpenAddRecipe,
   onAssignRecipeToPlan,
   onOpenGenerateAI,
@@ -47,11 +49,17 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
   const currentWeek = getCurrentWeekDates();
 
   // For the Assign to Plan modal
-  const [selectedDays, setSelectedDays] = useState<string[]>(() => [currentWeek[0]?.date || '2023-10-12']);
+  const [selectedDays, setSelectedDays] = useState<string[]>(() => [currentWeek[0]?.date || '2026-09-07']);
   const [selectedMealType, setSelectedMealType] = useState<MealType>('Almuerzo');
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
 
-  const filters = ['Todos', 'Altos en Proteína', 'Vegetariano', 'Comidas Rápidas', 'Desayuno', 'Gourmet'];
+  // Dynamic filters based only on user's actual categories and recipes (no hardcoded examples)
+  const filters = React.useMemo(() => {
+    const set = new Set<string>();
+    categories.forEach((c) => { if (c.trim()) set.add(c.trim()); });
+    recipes.forEach((r) => { if (r.category && r.category.trim()) set.add(r.category.trim()); });
+    return ['Todos', ...Array.from(set)];
+  }, [categories, recipes]);
 
   const filteredRecipes = recipes.filter((recipe) => {
     const matchesSearch =
@@ -62,13 +70,9 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
     if (!matchesSearch) return false;
 
     if (activeFilter === 'Todos') return true;
-    if (activeFilter === 'Altos en Proteína') return recipe.category === 'Proteico' || recipe.tags.some(t => t.toLowerCase().includes('proteína') || t.toLowerCase().includes('proteico'));
-    if (activeFilter === 'Vegetariano') return recipe.category === 'Vegetariano' || recipe.tags.some(t => t.toLowerCase().includes('vegetariano') || t.toLowerCase().includes('vegano'));
-    if (activeFilter === 'Comidas Rápidas') return recipe.timeMinutes <= 15 || recipe.category === 'Rápido' || recipe.tags.some(t => t.toLowerCase().includes('rápido'));
-    if (activeFilter === 'Desayuno') return recipe.category === 'Desayuno' || recipe.tags.some(t => t.toLowerCase().includes('desayuno'));
-    if (activeFilter === 'Gourmet') return recipe.category === 'Gourmet' || recipe.difficulty === 'Difícil';
-
-    return true;
+    const matchCat = recipe.category?.toLowerCase() === activeFilter.toLowerCase();
+    const matchTag = recipe.tags?.some((t) => t.toLowerCase() === activeFilter.toLowerCase());
+    return matchCat || matchTag;
   });
 
   const weekDayOptions = currentWeek.map((w) => {
@@ -280,6 +284,32 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
             </div>
           ))}
         </div>
+      ) : recipes.length === 0 ? (
+        <div className="bg-white rounded-2xl p-12 text-center border border-[#e1e3e4] space-y-4">
+          <BookOpen className="w-12 h-12 text-[#bfc9c1] mx-auto" />
+          <h3 className="text-lg font-bold text-[#191c1d] font-heading">
+            El recetario está vacío
+          </h3>
+          <p className="text-xs text-[#707973] max-w-md mx-auto">
+            No tienes recetas guardadas todavía. Puedes añadir tu primera receta personalizada o generarla con el asistente inteligente de IA.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              onClick={onOpenAddRecipe}
+              className="px-4 py-2 bg-[#0f5238] hover:bg-[#0b3e2a] text-white text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Añadir Primera Receta</span>
+            </button>
+            <button
+              onClick={onOpenGenerateAI}
+              className="px-4 py-2 bg-[#9b4500] hover:bg-[#763300] text-white text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Generar con IA</span>
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="bg-white rounded-2xl p-12 text-center border border-[#e1e3e4] space-y-4">
           <BookOpen className="w-12 h-12 text-[#bfc9c1] mx-auto" />
@@ -287,14 +317,13 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
             No se encontraron recetas
           </h3>
           <p className="text-xs text-[#707973] max-w-sm mx-auto">
-            Prueba a buscar con otro término o utiliza la IA para generar una nueva receta automáticamente.
+            Prueba a buscar con otro término o limpia los filtros para ver todas tus recetas.
           </p>
           <button
-            onClick={onOpenGenerateAI}
-            className="px-4 py-2 bg-[#9b4500] hover:bg-[#763300] text-white text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+            onClick={() => { setActiveFilter('Todos'); setSearchTerm(''); }}
+            className="px-4 py-2 bg-[#0f5238] hover:bg-[#0b3e2a] text-white text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Sparkles className="w-4 h-4" />
-            <span>Generar Recetas con IA</span>
+            <span>Ver Todas</span>
           </button>
         </div>
       )}

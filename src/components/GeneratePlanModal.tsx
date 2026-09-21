@@ -4,6 +4,7 @@ import {
   Loader2,
   X,
   CheckCircle2,
+  AlertCircle,
   Flame,
   Utensils,
   Calendar
@@ -148,8 +149,9 @@ export const GeneratePlanModal: React.FC<GeneratePlanModalProps> = ({
           </div>
 
           {errorMessage && (
-            <div className="p-3 bg-[#ffdad6] text-[#ba1a1a] text-xs rounded-xl">
-              {errorMessage}
+            <div className="p-3 bg-[#ffdad6] text-[#ba1a1a] text-xs rounded-xl flex items-center gap-2 border border-[#ba1a1a]/20">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
             </div>
           )}
 

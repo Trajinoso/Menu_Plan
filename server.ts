@@ -32,6 +32,7 @@ if (!fs.existsSync(EXPORT_DIR)) {
 
 interface AppDatabase {
   recipes: Recipe[];
+  categories?: string[];
   weeklyPlan: WeeklyPlan;
   monthPlan: MonthPlan;
   history: HistoryArchiveItem[];
@@ -43,13 +44,22 @@ function loadDatabase(): AppDatabase {
   try {
     if (fs.existsSync(DB_FILE)) {
       const raw = fs.readFileSync(DB_FILE, "utf-8");
-      return JSON.parse(raw);
+      const loaded = JSON.parse(raw);
+      // Purge old sample recipes and ensure categories is array
+      if (Array.isArray(loaded.recipes)) {
+        loaded.recipes = loaded.recipes.filter((r: any) => !/^rec-([1-9]|10)$/.test(r.id));
+      }
+      if (!Array.isArray(loaded.categories)) {
+        loaded.categories = [];
+      }
+      return loaded;
     }
   } catch (err) {
     console.error("Error reading database file, using defaults:", err);
   }
   const defaultDb: AppDatabase = {
     recipes: INITIAL_RECIPES,
+    categories: [],
     weeklyPlan: INITIAL_WEEKLY_PLAN,
     monthPlan: INITIAL_MONTH_PLAN,
     history: INITIAL_HISTORY,
@@ -97,11 +107,39 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/data", (_req, res) => {
   res.json({
     ...db,
+    categories: db.categories || [],
     aiSettings: {
       ...db.aiSettings,
       hasApiKey: Boolean(process.env.GEMINI_API_KEY)
     }
   });
+});
+
+// Categories CRUD
+app.get("/api/categories", (_req, res) => {
+  res.json(db.categories || []);
+});
+
+app.post("/api/categories", (req, res) => {
+  const { category, categories } = req.body;
+  if (Array.isArray(categories)) {
+    db.categories = categories;
+  } else if (typeof category === "string" && category.trim()) {
+    const trimmed = category.trim();
+    if (!db.categories) db.categories = [];
+    if (!db.categories.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+      db.categories.push(trimmed);
+    }
+  }
+  saveDatabase(db);
+  res.json(db.categories || []);
+});
+
+app.delete("/api/categories/:name", (req, res) => {
+  const target = decodeURIComponent(req.params.name).toLowerCase();
+  db.categories = (db.categories || []).filter(c => c.toLowerCase() !== target);
+  saveDatabase(db);
+  res.json({ success: true, categories: db.categories });
 });
 
 // Recipes CRUD
@@ -409,6 +447,66 @@ app.post("/api/git/sync", (_req, res) => {
 
 // ---------------- GEMINI AI ENDPOINTS ----------------
 
+// Helper to call Gemini with automatic fallback models and retry on 503/429
+const CANDIDATE_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-pro"
+];
+
+function formatAiErrorMessage(err: any): string {
+  const msg = err?.message || "";
+  if (msg.includes("GEMINI_API_KEY no está configurada") || msg.includes("API Key")) {
+    return "La clave GEMINI_API_KEY no está configurada. Por favor, añádela en la configuración de Google AI Studio.";
+  }
+  if (msg.includes("503") || msg.includes("high demand") || msg.includes("UNAVAILABLE")) {
+    return "Los modelos de IA están experimentando una alta demanda temporal en los servidores de Google. Por favor, inténtalo de nuevo en unos segundos.";
+  }
+  if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
+    return "Se ha alcanzado temporalmente el límite de peticiones de IA. Por favor, espera un momento antes de volver a intentarlo.";
+  }
+  return err?.message || "Error al procesar la solicitud con IA. Por favor, inténtalo de nuevo.";
+}
+
+async function callGeminiWithFallback(ai: GoogleGenAI, request: { contents: any; config?: any }) {
+  let lastError: any = null;
+
+  for (const modelName of CANDIDATE_MODELS) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: request.contents,
+          config: request.config
+        });
+        return response;
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = err?.message || "";
+        const status = err?.status || err?.code;
+        const isTransient =
+          status === 503 ||
+          status === 429 ||
+          errMsg.includes("503") ||
+          errMsg.includes("429") ||
+          errMsg.includes("high demand") ||
+          errMsg.includes("UNAVAILABLE") ||
+          errMsg.includes("RESOURCE_EXHAUSTED");
+
+        if (isTransient) {
+          console.warn(`Gemini model ${modelName} transient issue (attempt ${attempt + 1}):`, errMsg);
+          await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+        } else {
+          // If not transient, try next model or throw
+          break;
+        }
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 // AI Recipe Extractor from URL or Prompt
 app.post("/api/ai/extract-recipe", async (req, res) => {
   try {
@@ -436,8 +534,7 @@ Debes responder con un objeto JSON estricto que contenga:
       ? `Por favor estructura la siguiente receta o idea en un formato profesional: ${rawText}`
       : `Genera una receta deliciosa y balanceada para: ${recipeName || "Plato saludable"}`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await callGeminiWithFallback(ai, {
       contents: userPrompt,
       config: {
         systemInstruction: systemPrompt,
@@ -475,7 +572,7 @@ Debes responder con un objeto JSON estricto que contenga:
     res.json(parsed);
   } catch (err: any) {
     console.error("AI recipe extraction error:", err);
-    res.status(500).json({ error: err.message || "Error al procesar la receta con IA" });
+    res.status(500).json({ error: formatAiErrorMessage(err) });
   }
 });
 
@@ -489,8 +586,7 @@ app.post("/api/ai/generate-plan", async (req, res) => {
 Preferencias adicionales: ${specificPreferences || "Comidas variadas, ricas en nutrientes y fáciles de preparar"}.
 Para cada día, proporciona Desayuno, Almuerzo y Cena, con recetas reales, tiempo de preparación y calorías.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await callGeminiWithFallback(ai, {
       contents: prompt,
       config: {
         systemInstruction: `Eres MenuMaster AI Planner. Diseña planes semanales deliciosos y realistas en español. Devuelve un JSON estructurado.`,
@@ -547,7 +643,7 @@ Para cada día, proporciona Desayuno, Almuerzo y Cena, con recetas reales, tiemp
     res.json(parsed);
   } catch (err: any) {
     console.error("AI generate plan error:", err);
-    res.status(500).json({ error: err.message || "Error al generar el plan con IA" });
+    res.status(500).json({ error: formatAiErrorMessage(err) });
   }
 });
 
@@ -560,8 +656,7 @@ app.post("/api/ai/autofill-empty", async (req, res) => {
     const { targetPlan = "monthly", year = currentYear, month = currentMonth } = req.body;
     const ai = getGeminiClient();
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await callGeminiWithFallback(ai, {
       contents: "Proporciona 15 combinaciones variadas de almuerzos y cenas saludables para autocompletar días vacíos de un calendario mensual de comidas.",
       config: {
         responseMimeType: "application/json",
