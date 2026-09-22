@@ -107,23 +107,73 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
     dinner: []
   };
 
+  // Sincronizar fecha de referencia cuando plan.startDate cambia externamente
+  useEffect(() => {
+    if (plan.startDate && plan.startDate !== '2026-09-07') {
+      const parsed = parseISOLocal(plan.startDate);
+      setWeekRefDate((prev) => {
+        const prevStart = getCurrentWeekDates(prev)[0]?.date;
+        if (prevStart !== plan.startDate) {
+          return parsed;
+        }
+        return prev;
+      });
+    }
+  }, [plan.startDate]);
+
+  const changeWeek = (newRef: Date, targetDateStr?: string) => {
+    setWeekRefDate(newRef);
+    const newWeekDays = getCurrentWeekDates(newRef);
+    const newStart = newWeekDays[0]?.date || getTodayISO();
+    const newEnd = newWeekDays[6]?.date || getTodayISO();
+    const newTitle = `Semana del ${formatWeekRange(newStart, newEnd)}`;
+
+    let newSelected = targetDateStr;
+    if (!newSelected || !newWeekDays.some((w) => w.date === newSelected)) {
+      const todayInWeek = newWeekDays.find((w) => w.isToday);
+      newSelected = todayInWeek ? todayInWeek.date : newWeekDays[0]?.date || getTodayISO();
+    }
+    setSelectedDate(newSelected);
+
+    const newDays = { ...plan.days };
+    newWeekDays.forEach((d) => {
+      if (!newDays[d.date]) {
+        newDays[d.date] = {
+          date: d.date,
+          dayName: d.dayName,
+          dayNumber: d.dayNumber,
+          breakfast: [],
+          lunch: [],
+          dinner: []
+        };
+      }
+    });
+
+    onUpdatePlan({
+      ...plan,
+      startDate: newStart,
+      endDate: newEnd,
+      title: newTitle,
+      days: newDays
+    });
+  };
+
   const handlePrevWeek = () => {
-    setWeekRefDate((prev) => addDaysToDate(prev, -7));
+    changeWeek(addDaysToDate(weekRefDate, -7));
   };
 
   const handleNextWeek = () => {
-    setWeekRefDate((prev) => addDaysToDate(prev, 7));
+    changeWeek(addDaysToDate(weekRefDate, 7));
   };
 
   const handleCurrentWeek = () => {
-    setWeekRefDate(new Date());
+    changeWeek(new Date());
   };
 
   const handleDatePicked = (dateStr: string) => {
     if (!dateStr) return;
     const parsed = parseISOLocal(dateStr);
-    setWeekRefDate(parsed);
-    setSelectedDate(dateStr);
+    changeWeek(parsed, dateStr);
   };
 
   const handleAddMealToSlot = (slot: 'lunch' | 'dinner', recipe: Recipe) => {
@@ -232,13 +282,17 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
             </div>
 
             {/* Direct Week / Date Chooser */}
-            <div className="flex items-center">
+            <div className="flex items-center gap-1.5 bg-[#f3f4f5] px-2.5 py-1 rounded-xl border border-[#e1e3e4]">
+              <label htmlFor="weekly-date-picker" className="text-[11px] font-bold text-[#404943] uppercase tracking-wider flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-[#0f5238]" />
+                <span className="hidden sm:inline">Elegir semana:</span>
+              </label>
               <input
                 type="date"
                 id="weekly-date-picker"
                 value={selectedDate}
                 onChange={(e) => handleDatePicked(e.target.value)}
-                className="text-xs font-medium text-[#191c1d] bg-[#f3f4f5] hover:bg-[#e7e8e9] border border-[#e1e3e4] rounded-xl px-2.5 py-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0f5238]"
+                className="text-xs font-semibold text-[#191c1d] bg-transparent cursor-pointer focus:outline-none"
                 title="Elegir fecha o semana específica"
               />
             </div>

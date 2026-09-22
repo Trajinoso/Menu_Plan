@@ -404,8 +404,8 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
               <label className="block text-xs font-bold text-[#404943] uppercase tracking-wider mb-2">
                 Tipo de Comida
               </label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['Desayuno', 'Almuerzo', 'Cena'] as MealType[]).map((type) => (
+              <div className="grid grid-cols-2 gap-2">
+                {(['Almuerzo', 'Cena'] as MealType[]).map((type) => (
                   <button
                     key={type}
                     type="button"
@@ -416,7 +416,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({
                         : 'bg-[#f8f9fa] text-[#404943] border border-[#bfc9c1] hover:bg-[#e7e8e9]'
                     }`}
                   >
-                    <span>{type === 'Almuerzo' ? '☀️' : type === 'Cena' ? '🌙' : '🍳'}</span>
+                    <span>{type === 'Almuerzo' ? '☀️' : '🌙'}</span>
                     <span>{type}</span>
                   </button>
                 ))}

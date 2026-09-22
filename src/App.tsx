@@ -211,13 +211,27 @@ export function App() {
         throw new Error('Failed to fetch data');
       })
       .then((data) => {
-        if (data.recipes) setRecipes(data.recipes);
-        if (data.weeklyPlan) setWeeklyPlan(data.weeklyPlan);
+        if (data.recipes && Array.isArray(data.recipes) && data.recipes.length > 0) {
+          setRecipes(data.recipes);
+        } else {
+          try {
+            const localSaved = localStorage.getItem('mm_recipes');
+            if (localSaved) {
+              const parsed = JSON.parse(localSaved);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setRecipes(parsed);
+              }
+            }
+          } catch (e) {}
+        }
+        if (data.weeklyPlan && data.weeklyPlan.days && Object.keys(data.weeklyPlan.days).length > 0) {
+          setWeeklyPlan(data.weeklyPlan);
+        }
         if (data.monthPlan) setMonthPlan(data.monthPlan);
-        if (data.history) setHistory(data.history);
+        if (data.history && data.history.length > 0) setHistory(data.history);
         if (data.gitConfig) setGitConfig(data.gitConfig);
         if (data.aiSettings) setAiSettings(data.aiSettings);
-        if (Array.isArray(data.categories)) setCategories(data.categories);
+        if (Array.isArray(data.categories) && data.categories.length > 0) setCategories(data.categories);
       })
       .catch((err) => {
         console.warn('Using local bootstrap initial data:', err);
@@ -288,21 +302,30 @@ export function App() {
     try {
       // 1. Save all recipes to collection
       for (const r of recipes) {
-        await setDoc(doc(db, 'recipes', r.id), r);
+        try {
+          await setDoc(doc(db, 'recipes', r.id), r);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `recipes/${r.id}`);
+        }
       }
       // 2. Save app_state document
-      await setDoc(doc(db, 'app_state', 'main'), {
-        id: 'main',
-        weeklyPlan,
-        monthPlan,
-        categories,
-        history,
-        userId: currentUser?.uid || 'anonymous',
-        updatedAt: new Date().toISOString()
-      });
+      try {
+        await setDoc(doc(db, 'app_state', 'main'), {
+          id: 'main',
+          weeklyPlan,
+          monthPlan,
+          categories,
+          history,
+          userId: currentUser?.uid || 'anonymous',
+          updatedAt: new Date().toISOString()
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, 'app_state/main');
+      }
       showToast('¡Todos los datos se han guardado con éxito en Firebase Firestore!');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'app_state/main');
+    } catch (err: any) {
+      console.error('Firebase sync error:', err);
+      throw err;
     }
   };
 
@@ -392,23 +415,42 @@ export function App() {
 
   // Save new recipe
   const handleSaveNewRecipe = async (newRecipeData: Omit<Recipe, 'id' | 'createdAt'>) => {
+    const fullRecipeData = {
+      ...newRecipeData,
+      category: newRecipeData.category || 'General',
+      difficulty: newRecipeData.difficulty || 'Fácil',
+      timeMinutes: newRecipeData.timeMinutes || 20,
+      calories: newRecipeData.calories || 350,
+      servings: newRecipeData.servings || 1
+    };
+
     let savedRecipe: Recipe;
     try {
       const res = await fetch('/api/recipes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRecipeData)
+        body: JSON.stringify(fullRecipeData)
       });
-      savedRecipe = await res.json();
+      if (res.ok) {
+        savedRecipe = await res.json();
+      } else {
+        throw new Error('Server error');
+      }
     } catch (err) {
       savedRecipe = {
-        ...newRecipeData,
+        ...fullRecipeData,
         id: `rec-${Date.now()}`,
         createdAt: new Date().toISOString().split('T')[0]
       };
     }
 
-    setRecipes((prev) => [savedRecipe, ...prev]);
+    setRecipes((prev) => {
+      const updated = [savedRecipe, ...prev];
+      try {
+        localStorage.setItem('mm_recipes', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     setActiveTab('recipes');
     showToast(`¡Receta "${savedRecipe.name}" guardada con éxito!`);
 

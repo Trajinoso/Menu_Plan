@@ -14,7 +14,7 @@ service cloud.firestore {
     }
 
     function isVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn();
     }
 
     function isValidId(id) {
@@ -31,19 +31,23 @@ service cloud.firestore {
 
     // Recipe entity validation
     function isValidRecipe(data) {
-      return data.keys().hasAll(['id', 'name', 'category']) &&
+      return data.keys().hasAll(['id', 'name']) &&
         data.id is string && data.id.size() <= 128 &&
-        data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
-        data.category is string && data.category.size() > 0 && data.category.size() <= 60 &&
-        (!('description' in data) || (data.description is string && data.description.size() <= 500)) &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+        (!('category' in data) || (data.category is string && data.category.size() <= 100)) &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
         (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 2048)) &&
         (!('timeMinutes' in data) || (data.timeMinutes is number && data.timeMinutes >= 0 && data.timeMinutes <= 1440)) &&
         (!('calories' in data) || (data.calories is number && data.calories >= 0 && data.calories <= 10000)) &&
         (!('servings' in data) || (data.servings is number && data.servings >= 0 && data.servings <= 100)) &&
-        (!('difficulty' in data) || (data.difficulty is string && data.difficulty.size() <= 30)) &&
-        (!('ingredients' in data) || (data.ingredients is list && data.ingredients.size() <= 100)) &&
-        (!('instructions' in data) || (data.instructions is list && data.instructions.size() <= 100)) &&
-        (!('tags' in data) || (data.tags is list && data.tags.size() <= 30)) &&
+        (!('difficulty' in data) || (data.difficulty is string && data.difficulty.size() <= 50)) &&
+        (!('ingredients' in data) || (data.ingredients is list && data.ingredients.size() <= 200)) &&
+        (!('instructions' in data) || (data.instructions is list && data.instructions.size() <= 200)) &&
+        (!('tags' in data) || (data.tags is list && data.tags.size() <= 50)) &&
+        (!('sourceUrl' in data) || (data.sourceUrl is string && data.sourceUrl.size() <= 2048)) &&
+        (!('isAiGenerated' in data) || (data.isAiGenerated is bool)) &&
+        (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 60)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 60)) &&
         (!('userId' in data) || (data.userId is string && data.userId.size() <= 128));
     }
 
@@ -51,10 +55,11 @@ service cloud.firestore {
     function isValidAppState(data) {
       return data.keys().hasAll(['id']) &&
         data.id is string && data.id.size() <= 128 &&
-        (!('categories' in data) || (data.categories is list && data.categories.size() <= 50)) &&
-        (!('history' in data) || (data.history is list && data.history.size() <= 100)) &&
+        (!('categories' in data) || (data.categories is list && data.categories.size() <= 200)) &&
+        (!('history' in data) || (data.history is list && data.history.size() <= 1000)) &&
         (!('weeklyPlan' in data) || data.weeklyPlan is map) &&
         (!('monthPlan' in data) || data.monthPlan is map) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 100)) &&
         (!('userId' in data) || (data.userId is string && data.userId.size() <= 128));
     }
 

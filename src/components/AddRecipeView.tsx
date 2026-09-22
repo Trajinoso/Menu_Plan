@@ -184,7 +184,7 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
       .map((s) => s.replace(/^\d+\.\s*/, '').trim())
       .filter((s) => s.length > 0);
 
-    const chosenCategory = category.trim() || (availableCategories.length > 0 ? availableCategories[0] : '');
+    const chosenCategory = category.trim() || (availableCategories.length > 0 ? availableCategories[0] : 'General');
     const numMinutes = timeMinutes ? Number(timeMinutes) : 20;
     const numCalories = calories ? Number(calories) : 350;
     const numServings = servings ? Number(servings) : 1;
@@ -195,9 +195,9 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
       timeMinutes: numMinutes,
       calories: numCalories,
       servings: numServings,
-      category: chosenCategory,
-      difficulty,
-      tags: [chosenCategory, difficulty, `${numMinutes}m`].filter(Boolean),
+      category: chosenCategory || 'General',
+      difficulty: difficulty || 'Fácil',
+      tags: [chosenCategory || 'General', difficulty || 'Fácil', `${numMinutes}m`].filter(Boolean),
       imageUrl: imageUrl.trim() || 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=800&auto=format&fit=crop&q=80',
       ingredients: ingredients.filter((i) => i.trim().length > 0),
       instructions: instructionsArray,

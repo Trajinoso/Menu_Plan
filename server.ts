@@ -2,7 +2,6 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
-import { createServer as createViteServer } from "vite";
 import {
   INITIAL_RECIPES,
   INITIAL_WEEKLY_PLAN,
@@ -148,11 +147,23 @@ app.get("/api/recipes", (_req, res) => {
 });
 
 app.post("/api/recipes", (req, res) => {
+  const category = (req.body.category && typeof req.body.category === "string" && req.body.category.trim()) ? req.body.category.trim() : "General";
+  const difficulty = req.body.difficulty || "Fácil";
+  const timeMinutes = Number(req.body.timeMinutes) || 20;
+  const calories = Number(req.body.calories) || 350;
+  const servings = Number(req.body.servings) || 1;
+
   const recipe: Recipe = {
     ...req.body,
     id: req.body.id || `rec-${Date.now()}`,
+    name: req.body.name ? req.body.name.trim() : "Nueva Receta",
+    category,
+    difficulty,
+    timeMinutes,
+    calories,
+    servings,
     createdAt: req.body.createdAt || new Date().toISOString().split("T")[0],
-    tags: req.body.tags || (req.body.category ? [req.body.category] : ["Casero"]),
+    tags: req.body.tags && req.body.tags.length > 0 ? req.body.tags : [category, difficulty],
     ingredients: Array.isArray(req.body.ingredients) ? req.body.ingredients : [],
     instructions: Array.isArray(req.body.instructions) ? req.body.instructions : []
   };
@@ -779,6 +790,7 @@ app.post("/api/ai/autofill-empty", async (req, res) => {
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

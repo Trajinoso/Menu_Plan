@@ -3,20 +3,20 @@
   "categories": [],
   "weeklyPlan": {
     "id": "week-current",
-    "startDate": "2026-09-07",
-    "endDate": "2026-09-13",
-    "title": "Semana del 07 al 13 de Septiembre",
+    "startDate": "2026-09-21",
+    "endDate": "2026-09-27",
+    "title": "Semana del 21 al 27 de Septiembre",
     "tags": [
       "Menú Semanal"
     ],
     "days": {
-      "2026-09-07": { "date": "2026-09-07", "dayName": "Lunes", "dayNumber": 7, "breakfast": [], "lunch": [], "dinner": [] },
-      "2026-09-08": { "date": "2026-09-08", "dayName": "Martes", "dayNumber": 8, "breakfast": [], "lunch": [], "dinner": [] },
-      "2026-09-09": { "date": "2026-09-09", "dayName": "Miércoles", "dayNumber": 9, "breakfast": [], "lunch": [], "dinner": [] },
-      "2026-09-10": { "date": "2026-09-10", "dayName": "Jueves", "dayNumber": 10, "breakfast": [], "lunch": [], "dinner": [] },
-      "2026-09-11": { "date": "2026-09-11", "dayName": "Viernes", "dayNumber": 11, "breakfast": [], "lunch": [], "dinner": [] },
-      "2026-09-12": { "date": "2026-09-12", "dayName": "Sábado", "dayNumber": 12, "breakfast": [], "lunch": [], "dinner": [] },
-      "2026-09-13": { "date": "2026-09-13", "dayName": "Domingo", "dayNumber": 13, "breakfast": [], "lunch": [], "dinner": [] }
+      "2026-09-21": { "date": "2026-09-21", "dayName": "Lunes", "dayNumber": 21, "breakfast": [], "lunch": [], "dinner": [] },
+      "2026-09-22": { "date": "2026-09-22", "dayName": "Martes", "dayNumber": 22, "breakfast": [], "lunch": [], "dinner": [] },
+      "2026-09-23": { "date": "2026-09-23", "dayName": "Miércoles", "dayNumber": 23, "breakfast": [], "lunch": [], "dinner": [] },
+      "2026-09-24": { "date": "2026-09-24", "dayName": "Jueves", "dayNumber": 24, "breakfast": [], "lunch": [], "dinner": [] },
+      "2026-09-25": { "date": "2026-09-25", "dayName": "Viernes", "dayNumber": 25, "breakfast": [], "lunch": [], "dinner": [] },
+      "2026-09-26": { "date": "2026-09-26", "dayName": "Sábado", "dayNumber": 26, "breakfast": [], "lunch": [], "dinner": [] },
+      "2026-09-27": { "date": "2026-09-27", "dayName": "Domingo", "dayNumber": 27, "breakfast": [], "lunch": [], "dinner": [] }
     }
   },
   "monthPlan": {
