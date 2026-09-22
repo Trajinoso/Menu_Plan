@@ -1,0 +1,130 @@
+{
+  "entities": {
+    "recipe": {
+      "title": "Recipe",
+      "description": "Recipe with ingredients, instructions, and nutritional details",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the recipe",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Title of the recipe",
+          "maxLength": 150
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description of the recipe",
+          "maxLength": 500
+        },
+        "ingredients": {
+          "type": "array",
+          "description": "List of ingredient strings"
+        },
+        "instructions": {
+          "type": "array",
+          "description": "List of instruction steps"
+        },
+        "category": {
+          "type": "string",
+          "description": "Meal category",
+          "maxLength": 60
+        },
+        "timeMinutes": {
+          "type": "number",
+          "description": "Preparation and cooking time in minutes"
+        },
+        "calories": {
+          "type": "number",
+          "description": "Estimated calories per serving"
+        },
+        "servings": {
+          "type": "number",
+          "description": "Number of servings"
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "Difficulty level",
+          "maxLength": 30
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL to recipe image",
+          "maxLength": 2048
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tags associated with the recipe"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation date ISO string",
+          "maxLength": 40
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update ISO string",
+          "maxLength": 40
+        },
+        "userId": {
+          "type": "string",
+          "description": "User identifier who created the recipe",
+          "maxLength": 128
+        }
+      },
+      "required": ["id", "name", "category"]
+    },
+    "appState": {
+      "title": "AppState",
+      "description": "Synchronized plans, categories, and meal history",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifier for the state document",
+          "maxLength": 128
+        },
+        "weeklyPlan": {
+          "type": "object",
+          "description": "Active weekly meal plan"
+        },
+        "monthPlan": {
+          "type": "object",
+          "description": "Active monthly meal plan"
+        },
+        "categories": {
+          "type": "array",
+          "description": "Custom recipe categories list"
+        },
+        "history": {
+          "type": "array",
+          "description": "Historical archived plans"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of last update",
+          "maxLength": 40
+        },
+        "userId": {
+          "type": "string",
+          "description": "User identifier who owns this state",
+          "maxLength": 128
+        }
+      },
+      "required": ["id"]
+    }
+  },
+  "firestore": {
+    "/recipes/{recipeId}": {
+      "schema": "recipe",
+      "description": "Shared recipes accessible to authenticated users"
+    },
+    "/app_state/{stateId}": {
+      "schema": "appState",
+      "description": "Application state and meal plans for users"
+    }
+  }
+}

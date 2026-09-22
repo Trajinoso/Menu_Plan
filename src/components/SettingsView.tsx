@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   GitBranch,
   Key,
@@ -10,17 +10,31 @@ import {
   Lock,
   FileCode2,
   Download,
-  AlertCircle
+  Upload,
+  AlertCircle,
+  Database,
+  CloudCheck,
+  LogIn,
+  LogOut,
+  HardDriveDownload,
+  CloudUpload
 } from 'lucide-react';
 import { GitSyncConfig, AISettingsConfig } from '../types';
 
-interface SettingsViewProps {
+export interface SettingsViewProps {
   gitConfig: GitSyncConfig;
   aiSettings: AISettingsConfig;
   onSaveGitConfig: (config: Partial<GitSyncConfig>) => void;
   onSaveAISettings: (settings: Partial<AISettingsConfig>) => void;
   onForceSync: () => Promise<{ success: boolean; markdownPreview?: string }>;
   isSyncing: boolean;
+  currentUser?: { email?: string | null; displayName?: string | null; photoURL?: string | null } | null;
+  onLoginWithGoogle?: () => Promise<void>;
+  onLogoutGoogle?: () => Promise<void>;
+  onSyncToFirebase?: () => Promise<void>;
+  onRestoreFromFirebase?: () => Promise<void>;
+  onExportJsonBackup?: () => void;
+  onImportJsonBackup?: (file: File) => Promise<void>;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -30,6 +44,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onSaveAISettings,
   onForceSync,
   isSyncing,
+  currentUser,
+  onLoginWithGoogle,
+  onLogoutGoogle,
+  onSyncToFirebase,
+  onRestoreFromFirebase,
+  onExportJsonBackup,
+  onImportJsonBackup,
 }) => {
   // Git local states
   const [repoUrl, setRepoUrl] = useState(gitConfig.repoUrl || '');
@@ -42,8 +63,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [preferredDiet, setPreferredDiet] = useState(aiSettings.preferredDiet || 'Equilibrada con alto contenido proteico');
   const [aiSavedMessage, setAiSavedMessage] = useState(false);
 
+  // Firebase operation states
+  const [isFirebaseSyncing, setIsFirebaseSyncing] = useState(false);
+  const [firebaseMessage, setFirebaseMessage] = useState<string | null>(null);
+
   // Sync result preview
   const [previewMd, setPreviewMd] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSaveGit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,22 +102,211 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
+  const handlePushToFirebase = async () => {
+    if (!onSyncToFirebase) return;
+    setIsFirebaseSyncing(true);
+    setFirebaseMessage(null);
+    try {
+      await onSyncToFirebase();
+      setFirebaseMessage('¡Datos subidos y guardados con éxito en Firebase Firestore!');
+      setTimeout(() => setFirebaseMessage(null), 4000);
+    } catch (err: any) {
+      setFirebaseMessage('Error al sincronizar con Firebase: ' + (err?.message || 'Error desconocido'));
+    } finally {
+      setIsFirebaseSyncing(false);
+    }
+  };
+
+  const handlePullFromFirebase = async () => {
+    if (!onRestoreFromFirebase) return;
+    setIsFirebaseSyncing(true);
+    setFirebaseMessage(null);
+    try {
+      await onRestoreFromFirebase();
+      setFirebaseMessage('¡Datos descargados y sincronizados desde Firebase Firestore!');
+      setTimeout(() => setFirebaseMessage(null), 4000);
+    } catch (err: any) {
+      setFirebaseMessage('Error al descargar de Firebase: ' + (err?.message || 'Error desconocido'));
+    } finally {
+      setIsFirebaseSyncing(false);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onImportJsonBackup) return;
+    try {
+      await onImportJsonBackup(file);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
       {/* Header */}
       <div className="bg-white p-5 rounded-2xl border border-[#e1e3e4] shadow-xs">
         <h2 className="text-2xl font-bold text-[#191c1d] font-heading">
-          Configuración y Sincronización
+          Configuración y Persistencia
         </h2>
         <p className="text-xs md:text-sm text-[#707973] mt-0.5">
-          Configura la exportación de tus menús a Markdown, versionado Git y preferencias de IA
+          Gestiona la base de datos en la nube de Firebase, copias de seguridad locales y sincronización Git
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Columns: Git & AI Forms */}
+        {/* Left 2 Columns: Cloud, Backups, Git & AI */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Repositorio Git Card */}
+
+          {/* 1. Firebase Firestore Cloud Persistence Card */}
+          <div className="bg-white p-6 rounded-2xl border border-[#b1f0ce] shadow-xs space-y-5 relative overflow-hidden">
+            <div className="flex items-center justify-between pb-3 border-b border-[#e1e3e4]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#0f5238] text-white flex items-center justify-center shadow-xs">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[#191c1d] font-heading flex items-center gap-2">
+                    <span>Persistencia en la Nube (Google Firebase Firestore)</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#b1f0ce] text-[#002114]">
+                      Permanente
+                    </span>
+                  </h3>
+                  <p className="text-xs text-[#707973]">
+                    Tus recetas, categorías, historial y planes quedan a salvo en los servidores de Google, inmunes a actualizaciones o republicaciones.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Connection Status Box */}
+            <div className="p-4 rounded-xl bg-[#f0f4f1] border border-[#d2ddd6] space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#0f5238] animate-pulse" />
+                    <span className="text-xs font-bold text-[#0f5238]">
+                      Base de Datos Firestore Provisionada
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#404943]">
+                    {currentUser ? (
+                      <span>Sesión iniciada con: <strong>{currentUser.email}</strong></span>
+                    ) : (
+                      <span>Conéctate con tu cuenta de Google (Gmail) para asociar y proteger tus datos.</span>
+                    )}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {currentUser ? (
+                    onLogoutGoogle && (
+                      <button
+                        onClick={onLogoutGoogle}
+                        className="px-3 py-1.5 bg-white border border-[#bfc9c1] hover:bg-[#ffebee] hover:border-[#ffcdd2] text-[#ba1a1a] text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Cerrar Sesión</span>
+                      </button>
+                    )
+                  ) : (
+                    onLoginWithGoogle && (
+                      <button
+                        onClick={onLoginWithGoogle}
+                        className="px-4 py-2 bg-[#0f5238] hover:bg-[#2d6a4f] text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-xs"
+                      >
+                        <LogIn className="w-4 h-4" />
+                        <span>Iniciar Sesión con Google</span>
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons for Cloud Sync */}
+              <div className="pt-2 border-t border-[#d2ddd6] flex flex-wrap gap-2.5">
+                <button
+                  onClick={handlePushToFirebase}
+                  disabled={isFirebaseSyncing}
+                  className="px-3.5 py-2 bg-[#0f5238] hover:bg-[#2d6a4f] text-white text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  <CloudUpload className={`w-4 h-4 ${isFirebaseSyncing ? 'animate-spin' : ''}`} />
+                  <span>Subir todo a Firebase ahora</span>
+                </button>
+
+                <button
+                  onClick={handlePullFromFirebase}
+                  disabled={isFirebaseSyncing}
+                  className="px-3.5 py-2 bg-white hover:bg-[#e7e8e9] text-[#191c1d] border border-[#bfc9c1] text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  <HardDriveDownload className={`w-4 h-4 ${isFirebaseSyncing ? 'animate-spin' : ''}`} />
+                  <span>Cargar todo desde Firebase</span>
+                </button>
+              </div>
+
+              {firebaseMessage && (
+                <div className="p-2.5 rounded-lg bg-white border border-[#b1f0ce] text-xs text-[#0f5238] font-medium flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#0f5238] shrink-0" />
+                  <span>{firebaseMessage}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 2. Local Backup & Restore (JSON) Card */}
+          <div className="bg-white p-6 rounded-2xl border border-[#e1e3e4] shadow-xs space-y-4">
+            <div className="flex items-center gap-3 pb-3 border-b border-[#e1e3e4]">
+              <div className="w-10 h-10 rounded-xl bg-[#fc8a40]/10 text-[#9b4500] flex items-center justify-center">
+                <Download className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-[#191c1d] font-heading">
+                  Copia de Seguridad y Restauración Manual (JSON)
+                </h3>
+                <p className="text-xs text-[#707973]">
+                  Descarga un archivo JSON con todas tus recetas, categorías y menús, o restaura una copia guardada en tu ordenador
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <button
+                onClick={onExportJsonBackup}
+                className="p-4 rounded-xl border border-[#e1e3e4] bg-[#f8f9fa] hover:bg-white hover:border-[#0f5238] text-left transition-all group cursor-pointer space-y-1.5 shadow-2xs"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#191c1d] group-hover:text-[#0f5238]">
+                    Descargar Copia JSON
+                  </span>
+                  <Download className="w-4 h-4 text-[#707973] group-hover:text-[#0f5238]" />
+                </div>
+                <p className="text-[11px] text-[#707973] leading-relaxed">
+                  Guarda un archivo <code>menumaster_backup.json</code> en tu PC con todo el contenido actual.
+                </p>
+              </button>
+
+              <label className="p-4 rounded-xl border border-[#e1e3e4] bg-[#f8f9fa] hover:bg-white hover:border-[#0f5238] text-left transition-all group cursor-pointer space-y-1.5 shadow-2xs block">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#191c1d] group-hover:text-[#0f5238]">
+                    Restaurar desde JSON
+                  </span>
+                  <Upload className="w-4 h-4 text-[#707973] group-hover:text-[#0f5238]" />
+                </div>
+                <p className="text-[11px] text-[#707973] leading-relaxed">
+                  Selecciona tu archivo de respaldo para repoblar al instante recetas, planes e historial.
+                </p>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".json"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* 3. Repositorio Git Card */}
           <div className="bg-white p-6 rounded-2xl border border-[#e1e3e4] shadow-xs space-y-5">
             <div className="flex items-center gap-3 pb-3 border-b border-[#e1e3e4]">
               <div className="w-10 h-10 rounded-xl bg-[#0f5238]/10 text-[#0f5238] flex items-center justify-center">
@@ -179,7 +395,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </form>
           </div>
 
-          {/* Configuración de Gemini AI Card */}
+          {/* 4. Configuración de Gemini AI Card */}
           <div className="bg-white p-6 rounded-2xl border border-[#e1e3e4] shadow-xs space-y-5">
             <div className="flex items-center gap-3 pb-3 border-b border-[#e1e3e4]">
               <div className="w-10 h-10 rounded-xl bg-[#fc8a40]/10 text-[#9b4500] flex items-center justify-center">
@@ -217,8 +433,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
                 <p className="leading-relaxed">
                   {aiSettings.hasApiKey
-                    ? 'La clave GEMINI_API_KEY está configurada de forma segura en las variables de entorno del servidor. El modelo Gemini 2.5 Flash está listo para operar.'
-                    : 'Para activar la IA en Google AI Studio, añade GEMINI_API_KEY en los Secrets del entorno (o en .env). Si despliegas en Vercel o Netlify, agrégala en "Environment Variables".'}
+                    ? 'La clave GEMINI_API_KEY está configurada de forma segura en las variables de entorno del servidor. Los modelos Gemini Flash y Pro están listos para operar.'
+                    : 'Para activar la IA en Google AI Studio, añade GEMINI_API_KEY en los Secrets del entorno (o en .env).'}
                 </p>
               </div>
             </div>
@@ -253,7 +469,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="flex items-center justify-between pt-2">
                 <div className="flex items-center gap-1.5 text-xs text-[#0f5238] font-medium">
                   <ShieldCheck className="w-4 h-4" />
-                  <span>Gemini 3.7 Flash Activo</span>
+                  <span>Gemini Flash & Fallback Activo</span>
                 </div>
 
                 <button
@@ -276,16 +492,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         {/* Right 1 Column: Sync Status & Explanation Card */}
         <div className="space-y-6">
-          {/* Sync Status Card (Matching design) */}
+          {/* Sync Status Card */}
           <div className="bg-white p-6 rounded-2xl border border-[#e1e3e4] shadow-xs space-y-4">
             <h3 className="text-base font-bold text-[#191c1d] font-heading">
               Estado de Sincronización
             </h3>
 
             <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#f8f9fa] border border-[#e1e3e4]">
-              <span className="text-xs font-semibold text-[#404943]">Estado</span>
+              <span className="text-xs font-semibold text-[#404943]">Base de Datos</span>
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0f5238]">
-                <span className={`w-2.5 h-2.5 rounded-full ${gitConfig.isConnected ? 'bg-[#0f5238] animate-pulse' : 'bg-[#707973]'}`} />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#0f5238] animate-pulse" />
+                Firebase Firestore
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#f8f9fa] border border-[#e1e3e4]">
+              <span className="text-xs font-semibold text-[#404943]">Repositorio Git</span>
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0f5238]">
+                <span className={`w-2.5 h-2.5 rounded-full ${gitConfig.isConnected ? 'bg-[#0f5238]' : 'bg-[#707973]'}`} />
                 {gitConfig.statusText || (gitConfig.isConnected ? 'Conectado y Activo' : 'Exportación Local')}
               </span>
             </div>
@@ -303,19 +527,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               className="w-full py-3 px-4 bg-[#fc8a40] hover:bg-[#9b4500] text-white font-bold text-xs md:text-sm rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 active:scale-98"
             >
               <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Sincronizando Archivos...' : 'Exportar / Sincronizar'}</span>
+              <span>{isSyncing ? 'Exportando Archivos...' : 'Exportar a Markdown / Git'}</span>
             </button>
           </div>
 
-          {/* ¿Cómo funciona? Card matching design visual */}
+          {/* Explanation Card */}
           <div className="bg-gradient-to-br from-[#0f5238] to-[#1e4d3a] text-white p-6 rounded-2xl shadow-md space-y-3 relative overflow-hidden">
             <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/5 rounded-full blur-xl pointer-events-none" />
             <h3 className="text-base font-bold font-heading flex items-center gap-2">
-              <FileCode2 className="w-5 h-5 text-[#b1f0ce]" />
-              <span>¿Cómo funciona?</span>
+              <ShieldCheck className="w-5 h-5 text-[#b1f0ce]" />
+              <span>Seguridad de Datos</span>
             </h3>
             <p className="text-xs text-[#b1f0ce] leading-relaxed">
-              MenuMaster serializa tus recetas, planificadores y listas en archivos <strong>Markdown</strong> y <strong>JSON</strong> estandarizados. Puedes exportarlos y descargarlos localmente o guardarlos en tu propio repositorio Git para control de versiones.
+              Con <strong>Firebase Firestore</strong>, tus datos están protegidos en la nube de Google. Las recetas, la planificación mensual y el historial no se borran al desplegar o actualizar versiones del código.
             </p>
             <div className="pt-2">
               <button
@@ -342,7 +566,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
               <button
                 onClick={() => setPreviewMd(null)}
-                className="text-[#707973] hover:text-[#191c1d] font-bold p-1"
+                className="text-[#707973] hover:text-[#191c1d] font-bold p-1 cursor-pointer"
               >
                 ✕
               </button>
@@ -358,7 +582,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </span>
               <button
                 onClick={() => setPreviewMd(null)}
-                className="px-5 py-2 bg-[#0f5238] text-white text-xs font-semibold rounded-xl hover:bg-[#2d6a4f]"
+                className="px-5 py-2 bg-[#0f5238] text-white text-xs font-semibold rounded-xl hover:bg-[#2d6a4f] cursor-pointer"
               >
                 Cerrar
               </button>

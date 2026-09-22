@@ -9,7 +9,10 @@ import {
   Shield,
   Sparkles,
   Plus,
-  CloudCheck
+  CloudCheck,
+  LogIn,
+  LogOut,
+  Database
 } from 'lucide-react';
 import { NavTab } from '../types';
 
@@ -19,6 +22,9 @@ interface SidebarProps {
   onOpenNewMenu: () => void;
   onOpenGenerateAI: () => void;
   gitConnected: boolean;
+  currentUser?: { email?: string | null; displayName?: string | null; photoURL?: string | null } | null;
+  onLogin?: () => void;
+  onLogout?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -27,6 +33,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenNewMenu,
   onOpenGenerateAI,
   gitConnected,
+  currentUser,
+  onLogin,
+  onLogout,
 }) => {
   const navItems = [
     { id: 'weekly' as const, label: 'Planificador Semanal', icon: CalendarDays },
@@ -48,8 +57,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             MenuMaster
           </h1>
           <p className="text-xs text-[#707973] flex items-center gap-1 font-medium">
-            <span className={`w-2 h-2 rounded-full ${gitConnected ? 'bg-[#0f5238]' : 'bg-[#fc8a40]'}`} />
-            {gitConnected ? 'Sincronización Git Activa' : 'Sin sincronizar'}
+            <span className={`w-2 h-2 rounded-full ${currentUser ? 'bg-[#0f5238] animate-pulse' : 'bg-[#0f5238]'}`} />
+            {currentUser ? 'Firebase Nube Activa' : 'Persistencia Firestore'}
           </p>
         </div>
       </div>
@@ -89,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </ul>
 
       {/* AI Generator CTA button in footer */}
-      <div className="px-5 mb-4">
+      <div className="px-5 mb-3">
         <button
           onClick={onOpenGenerateAI}
           className="w-full bg-[#9b4500] hover:bg-[#763300] text-white text-xs font-semibold py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
@@ -99,19 +108,64 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
-      {/* Footer User & Links */}
+      {/* User & Cloud Auth Status */}
       <div className="mt-auto px-4 pt-3 border-t border-[#e1e3e4] space-y-2">
-        <div className="flex items-center gap-3 px-2 py-1.5 rounded-lg bg-white/70 border border-[#e1e3e4]/60">
-          <img
-            src="https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=120&auto=format&fit=crop&q=80"
-            alt="Chef Admin"
-            className="w-8 h-8 rounded-full object-cover border border-[#bfc9c1]"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-[#191c1d] truncate">Chef Pro</p>
-            <p className="text-[10px] text-[#707973] truncate">Cocina Inteligente</p>
+        {currentUser ? (
+          <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#b1f0ce] shadow-2xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {currentUser.photoURL ? (
+                <img
+                  src={currentUser.photoURL}
+                  alt={currentUser.displayName || 'Usuario'}
+                  className="w-8 h-8 rounded-full object-cover border border-[#0f5238]"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-[#0f5238] text-white flex items-center justify-center font-bold text-xs">
+                  {(currentUser.displayName || currentUser.email || 'U')[0].toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-[#191c1d] truncate">
+                  {currentUser.displayName || currentUser.email?.split('@')[0]}
+                </p>
+                <p className="text-[10px] text-[#0f5238] font-medium flex items-center gap-1 truncate">
+                  <Database className="w-3 h-3" />
+                  <span>Nube Conectada</span>
+                </p>
+              </div>
+            </div>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Cerrar sesión"
+                className="p-1.5 text-[#707973] hover:text-[#ba1a1a] rounded-lg hover:bg-[#ffebee] transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
-        </div>
+        ) : (
+          <div className="p-2 rounded-xl bg-white border border-[#e1e3e4] space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-[#404943] flex items-center gap-1">
+                <Database className="w-3 h-3 text-[#0f5238]" />
+                <span>Firebase Firestore</span>
+              </span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#e8f5ee] text-[#0f5238] font-bold">
+                Listo
+              </span>
+            </div>
+            {onLogin && (
+              <button
+                onClick={onLogin}
+                className="w-full py-1.5 px-2 bg-[#0f5238] hover:bg-[#2d6a4f] text-white text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Conectar con Google</span>
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="flex justify-between items-center px-2 text-[11px] text-[#707973]">
           <button onClick={() => onSelectTab('settings')} className="hover:text-[#0f5238] flex items-center gap-1 cursor-pointer">

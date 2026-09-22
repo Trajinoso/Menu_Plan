@@ -30,6 +30,17 @@ import {
 } from './data/initialData';
 import { getCurrentWeekDates } from './utils/dateHelpers';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
+import {
+  auth,
+  db,
+  loginWithGoogle,
+  logoutUser,
+  testConnection,
+  handleFirestoreError,
+  OperationType
+} from './lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, getDoc, setDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
 
 // Limpieza automática de recetas y categorías de ejemplo previas
 try {
@@ -63,6 +74,7 @@ export function App() {
   const [isGenerateAIModalOpen, setIsGenerateAIModalOpen] = useState(false);
 
   // Core Data States with localStorage persistence for static deployments (GitHub Pages)
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
 
   const [recipes, setRecipes] = useState<Recipe[]>(() => {
@@ -188,8 +200,11 @@ export function App() {
     }, 3500);
   };
 
-  // Bootstrap data on mount
+  // Bootstrap data on mount & listen to Firebase Auth
   useEffect(() => {
+    testConnection();
+
+    // 1. Fetch initial local/server data
     fetch('/api/data')
       .then((res) => {
         if (res.ok) return res.json();
@@ -207,30 +222,201 @@ export function App() {
       .catch((err) => {
         console.warn('Using local bootstrap initial data:', err);
       });
+
+    // 2. Listen to Firebase Auth state & sync with Firestore
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        try {
+          const [recipeSnap, stateSnap] = await Promise.all([
+            getDocs(collection(db, 'recipes')),
+            getDoc(doc(db, 'app_state', 'main'))
+          ]);
+
+          let hasCloudData = false;
+          if (recipeSnap.docs.length > 0) {
+            const cloudRecipes = recipeSnap.docs.map((d) => d.data() as Recipe);
+            setRecipes(cloudRecipes);
+            hasCloudData = true;
+          }
+          if (stateSnap.exists()) {
+            const data = stateSnap.data();
+            if (data.weeklyPlan) setWeeklyPlan(data.weeklyPlan);
+            if (data.monthPlan) setMonthPlan(data.monthPlan);
+            if (Array.isArray(data.categories)) setCategories(data.categories);
+            if (Array.isArray(data.history)) setHistory(data.history);
+            hasCloudData = true;
+          }
+
+          if (hasCloudData) {
+            showToast(`¡Conectado como ${user.displayName || user.email}! Sincronizado con Firebase.`);
+          }
+        } catch (err) {
+          console.warn('Error reading from Firestore on auth change:', err);
+        }
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
+
+  // Firebase Auth Handlers
+  const handleLogin = async () => {
+    try {
+      const user = await loginWithGoogle();
+      if (user) {
+        showToast(`¡Bienvenido ${user.displayName || user.email}! Conectado a Firebase Firestore.`);
+      }
+    } catch (err: any) {
+      console.error('Login error:', err);
+      showToast('No se pudo iniciar sesión con Google: ' + (err?.message || 'Error'), 'error');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      setCurrentUser(null);
+      showToast('Has cerrado sesión en Firebase.');
+    } catch (err: any) {
+      showToast('Error al cerrar sesión', 'error');
+    }
+  };
+
+  // Cloud Sync Handlers (Manual triggers)
+  const handleSyncToFirebase = async () => {
+    try {
+      // 1. Save all recipes to collection
+      for (const r of recipes) {
+        await setDoc(doc(db, 'recipes', r.id), r);
+      }
+      // 2. Save app_state document
+      await setDoc(doc(db, 'app_state', 'main'), {
+        id: 'main',
+        weeklyPlan,
+        monthPlan,
+        categories,
+        history,
+        userId: currentUser?.uid || 'anonymous',
+        updatedAt: new Date().toISOString()
+      });
+      showToast('¡Todos los datos se han guardado con éxito en Firebase Firestore!');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'app_state/main');
+    }
+  };
+
+  const handleRestoreFromFirebase = async () => {
+    try {
+      const [recipeSnap, stateSnap] = await Promise.all([
+        getDocs(collection(db, 'recipes')),
+        getDoc(doc(db, 'app_state', 'main'))
+      ]);
+
+      if (recipeSnap.docs.length > 0) {
+        const cloudRecipes = recipeSnap.docs.map((d) => d.data() as Recipe);
+        setRecipes(cloudRecipes);
+      }
+      if (stateSnap.exists()) {
+        const data = stateSnap.data();
+        if (data.weeklyPlan) setWeeklyPlan(data.weeklyPlan);
+        if (data.monthPlan) setMonthPlan(data.monthPlan);
+        if (Array.isArray(data.categories)) setCategories(data.categories);
+        if (Array.isArray(data.history)) setHistory(data.history);
+      }
+      showToast('¡Datos recuperados desde Firebase Firestore!');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, 'app_state/main');
+    }
+  };
+
+  // JSON File Backup and Restore Handlers
+  const handleExportJsonBackup = () => {
+    const backup = {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      recipes,
+      categories,
+      weeklyPlan,
+      monthPlan,
+      history
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `menumaster_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Copia de seguridad JSON descargada correctamente');
+  };
+
+  const handleImportJsonBackup = async (file: File) => {
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed.recipes)) setRecipes(parsed.recipes);
+      if (Array.isArray(parsed.categories)) setCategories(parsed.categories);
+      if (parsed.weeklyPlan) setWeeklyPlan(parsed.weeklyPlan);
+      if (parsed.monthPlan) setMonthPlan(parsed.monthPlan);
+      if (Array.isArray(parsed.history)) setHistory(parsed.history);
+
+      // Restore to server
+      fetch('/api/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed)
+      }).catch(() => {});
+
+      // If user is logged in, also sync to Firebase
+      if (currentUser) {
+        for (const r of (parsed.recipes || [])) {
+          setDoc(doc(db, 'recipes', r.id), r).catch(() => {});
+        }
+        setDoc(doc(db, 'app_state', 'main'), {
+          id: 'main',
+          weeklyPlan: parsed.weeklyPlan || weeklyPlan,
+          monthPlan: parsed.monthPlan || monthPlan,
+          categories: parsed.categories || categories,
+          history: parsed.history || history,
+          userId: currentUser.uid,
+          updatedAt: new Date().toISOString()
+        }).catch(() => {});
+      }
+
+      showToast(`¡Copia importada con éxito! (${(parsed.recipes || []).length} recetas)`);
+    } catch (err: any) {
+      showToast('Error al importar archivo JSON: Formato no válido', 'error');
+    }
+  };
 
   // Save new recipe
   const handleSaveNewRecipe = async (newRecipeData: Omit<Recipe, 'id' | 'createdAt'>) => {
+    let savedRecipe: Recipe;
     try {
       const res = await fetch('/api/recipes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRecipeData)
       });
-      const saved = await res.json();
-      setRecipes((prev) => [saved, ...prev]);
-      setActiveTab('recipes');
-      showToast(`¡Receta "${saved.name}" guardada con éxito!`);
+      savedRecipe = await res.json();
     } catch (err) {
-      // Fallback local save
-      const fallback: Recipe = {
+      savedRecipe = {
         ...newRecipeData,
         id: `rec-${Date.now()}`,
         createdAt: new Date().toISOString().split('T')[0]
       };
-      setRecipes((prev) => [fallback, ...prev]);
-      setActiveTab('recipes');
-      showToast(`¡Receta "${fallback.name}" guardada con éxito!`);
+    }
+
+    setRecipes((prev) => [savedRecipe, ...prev]);
+    setActiveTab('recipes');
+    showToast(`¡Receta "${savedRecipe.name}" guardada con éxito!`);
+
+    // Sync to Firestore if authenticated
+    if (currentUser) {
+      setDoc(doc(db, 'recipes', savedRecipe.id), savedRecipe).catch((e) =>
+        console.warn('Firestore sync recipe:', e)
+      );
     }
   };
 
@@ -312,6 +498,13 @@ export function App() {
     setEditingRecipe(null);
     setActiveTab('recipes');
     showToast(`¡Receta "${updated.name}" actualizada con éxito!`);
+
+    // Sync updated recipe to Firestore if authenticated
+    if (currentUser) {
+      setDoc(doc(db, 'recipes', updated.id), updated).catch((e) =>
+        console.warn('Firestore sync updated recipe:', e)
+      );
+    }
   };
 
   // Update weekly plan with bidirectional sync to monthly plan
@@ -348,6 +541,19 @@ export function App() {
     } catch (err) {
       console.error('Error saving weekly plan:', err);
     }
+
+    // Sync to Firestore if authenticated
+    if (currentUser) {
+      setDoc(
+        doc(db, 'app_state', 'main'),
+        {
+          id: 'main',
+          weeklyPlan: updated,
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      ).catch((e) => console.warn('Firestore update weekly plan:', e));
+    }
   };
 
   // Update monthly plan with bidirectional sync to weekly plan
@@ -380,6 +586,19 @@ export function App() {
       });
     } catch (err) {
       console.error('Error saving monthly plan:', err);
+    }
+
+    // Sync to Firestore if authenticated
+    if (currentUser) {
+      setDoc(
+        doc(db, 'app_state', 'main'),
+        {
+          id: 'main',
+          monthPlan: updated,
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      ).catch((e) => console.warn('Firestore update month plan:', e));
     }
   };
 
@@ -680,6 +899,12 @@ export function App() {
     } catch (err) {
       // Backend offline or GitHub Pages: state persisted in localStorage
     }
+
+    if (currentUser) {
+      deleteDoc(doc(db, 'recipes', id)).catch((e) =>
+        console.warn('Firestore delete recipe:', e)
+      );
+    }
   };
 
   // AI Generated plan applied to current weekly plan
@@ -767,6 +992,9 @@ export function App() {
         onOpenNewMenu={() => setActiveTab('weekly')}
         onOpenGenerateAI={() => setIsGenerateAIModalOpen(true)}
         gitConnected={gitConfig.isConnected}
+        currentUser={currentUser}
+        onLogin={handleLogin}
+        onLogout={handleLogout}
       />
 
       {/* Mobile Drawer Navigation */}
@@ -849,6 +1077,10 @@ export function App() {
               setActiveTab(tab);
             }
           }}
+          currentUser={currentUser}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+          firebaseConnected={true}
         />
 
         {/* View Switcher Container */}
@@ -922,6 +1154,13 @@ export function App() {
               onSaveAISettings={handleSaveAISettings}
               onForceSync={handleForceSync}
               isSyncing={isSyncing}
+              currentUser={currentUser}
+              onLoginWithGoogle={handleLogin}
+              onLogoutGoogle={handleLogout}
+              onSyncToFirebase={handleSyncToFirebase}
+              onRestoreFromFirebase={handleRestoreFromFirebase}
+              onExportJsonBackup={handleExportJsonBackup}
+              onImportJsonBackup={handleImportJsonBackup}
             />
           )}
         </main>

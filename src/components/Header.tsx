@@ -5,9 +5,9 @@ import {
   Sparkles,
   RefreshCw,
   PlusCircle,
-  Bell,
-  CheckCircle2,
-  CalendarDays
+  Database,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 import { NavTab } from '../types';
 import { SPANISH_MONTHS } from '../utils/dateHelpers';
@@ -21,6 +21,10 @@ interface HeaderProps {
   onOpenGenerateAI?: () => void;
   activeTab: NavTab['id'];
   onSelectTab: (tab: NavTab['id']) => void;
+  currentUser?: { email?: string | null; displayName?: string | null; photoURL?: string | null } | null;
+  onLogin?: () => void;
+  onLogout?: () => void;
+  firebaseConnected?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -31,7 +35,11 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNewRecipe,
   onOpenGenerateAI,
   activeTab,
-  onSelectTab
+  onSelectTab,
+  currentUser,
+  onLogin,
+  onLogout,
+  firebaseConnected = true,
 }) => {
   const now = new Date();
   const currentMonthYear = `${SPANISH_MONTHS[now.getMonth()]} ${now.getFullYear()}`;
@@ -71,6 +79,12 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Side Actions */}
       <div className="flex items-center gap-2 md:gap-3">
+        {/* Firebase Cloud status badge */}
+        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#f0f4f1] text-[#0f5238] border border-[#d2ddd6]">
+          <Database className="w-3.5 h-3.5 text-[#0f5238]" />
+          <span>{currentUser ? 'Firebase Nube Activa' : 'Firestore Conectado'}</span>
+        </div>
+
         {onSyncGit && (
           <button
             onClick={onSyncGit}
@@ -79,7 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <CloudCheck className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">
-              {isSyncing ? 'Sincronizando...' : 'Sincronizar con Git'}
+              {isSyncing ? 'Sincronizando...' : 'Exportar Git'}
             </span>
           </button>
         )}
@@ -104,13 +118,45 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        <div className="w-8 h-8 rounded-full overflow-hidden border border-[#bfc9c1] ml-1">
-          <img
-            src="https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=120&auto=format&fit=crop&q=80"
-            alt="Usuario"
-            className="w-full h-full object-cover"
-          />
-        </div>
+        {/* User Account / Login */}
+        {currentUser ? (
+          <div className="flex items-center gap-2 pl-1 border-l border-[#e1e3e4]">
+            <div
+              className="w-8 h-8 rounded-full overflow-hidden border border-[#0f5238] flex items-center justify-center bg-[#0f5238] text-white text-xs font-bold"
+              title={currentUser.email || currentUser.displayName || 'Usuario'}
+            >
+              {currentUser.photoURL ? (
+                <img
+                  src={currentUser.photoURL}
+                  alt={currentUser.displayName || 'Usuario'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                (currentUser.displayName || currentUser.email || 'U')[0].toUpperCase()
+              )}
+            </div>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Cerrar sesión"
+                className="hidden sm:flex text-xs text-[#707973] hover:text-[#ba1a1a] p-1 rounded-md cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        ) : (
+          onLogin && (
+            <button
+              onClick={onLogin}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0f5238] hover:bg-[#2d6a4f] text-white text-xs font-semibold rounded-full shadow-2xs transition-all cursor-pointer"
+              title="Iniciar sesión con Google para sincronizar tus datos"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Conectar Google</span>
+            </button>
+          )
+        )}
       </div>
     </header>
   );

@@ -238,6 +238,18 @@ app.get("/api/plans/monthly", (_req, res) => {
   res.json(db.monthPlan);
 });
 
+// Restore / Import full backup
+app.post("/api/restore", (req, res) => {
+  const { recipes, categories, weeklyPlan, monthPlan, history } = req.body;
+  if (Array.isArray(recipes)) db.recipes = recipes;
+  if (Array.isArray(categories)) db.categories = categories;
+  if (weeklyPlan && typeof weeklyPlan === "object") db.weeklyPlan = weeklyPlan;
+  if (monthPlan && typeof monthPlan === "object") db.monthPlan = monthPlan;
+  if (Array.isArray(history)) db.history = history;
+  saveDatabase(db);
+  res.json({ success: true, message: "Datos restaurados con éxito", db });
+});
+
 app.post("/api/plans/monthly", (req, res) => {
   db.monthPlan = req.body;
   // Sincronización bidireccional: propagar los días del mes a la vista semanal
