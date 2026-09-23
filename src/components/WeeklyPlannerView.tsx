@@ -412,13 +412,13 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
 
                   {meal.imageUrl && (
                     <div
-                      className="bg-cover bg-center w-full h-36"
+                      className="bg-cover bg-center w-full h-24 sm:h-32 md:h-36"
                       style={{ backgroundImage: `url(${meal.imageUrl})` }}
                     />
                   )}
                   <div className="p-3.5 flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm text-[#191c1d] truncate" title={meal.name}>
+                      <h4 className="font-extrabold text-base sm:text-sm text-[#191c1d] truncate tracking-tight" title={meal.name}>
                         {meal.name}
                       </h4>
                       <div className="flex items-center gap-3 text-xs text-[#707973] mt-1">
@@ -523,13 +523,13 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
 
                   {meal.imageUrl && (
                     <div
-                      className="bg-cover bg-center w-full h-36"
+                      className="bg-cover bg-center w-full h-24 sm:h-32 md:h-36"
                       style={{ backgroundImage: `url(${meal.imageUrl})` }}
                     />
                   )}
                   <div className="p-3.5 flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm text-[#191c1d] truncate" title={meal.name}>
+                      <h4 className="font-extrabold text-base sm:text-sm text-[#191c1d] truncate tracking-tight" title={meal.name}>
                         {meal.name}
                       </h4>
                       <div className="flex items-center gap-3 text-xs text-[#707973] mt-1">

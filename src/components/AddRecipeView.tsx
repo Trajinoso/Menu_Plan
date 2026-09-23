@@ -308,7 +308,7 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
           </label>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
             <div className="md:col-span-1">
-              <div className="h-44 rounded-xl overflow-hidden border border-[#bfc9c1] bg-[#f8f9fa] relative group flex items-center justify-center">
+              <div className="h-32 sm:h-44 rounded-xl overflow-hidden border border-[#bfc9c1] bg-[#f8f9fa] relative group flex items-center justify-center">
                 {imageUrl ? (
                   <img
                     src={imageUrl}
