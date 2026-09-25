@@ -9,9 +9,10 @@ import {
   Image as ImageIcon,
   Loader2,
   AlertCircle,
-  Tag
+  Tag,
+  X
 } from 'lucide-react';
-import { Recipe, Difficulty } from '../types';
+import { Recipe, Difficulty, getRecipeCategories } from '../types';
 
 interface AddRecipeViewProps {
   recipeToEdit?: Recipe | null;
@@ -48,7 +49,9 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
   const [servings, setServings] = useState<string>(
     recipeToEdit?.servings ? String(recipeToEdit.servings) : ''
   );
-  const [category, setCategory] = useState<string>(recipeToEdit?.category || '');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() =>
+    getRecipeCategories(recipeToEdit)
+  );
   const [difficulty, setDifficulty] = useState<Difficulty>(recipeToEdit?.difficulty || 'Fácil');
   const [imageUrl, setImageUrl] = useState(recipeToEdit?.imageUrl || '');
   const [ingredients, setIngredients] = useState<string[]>(
@@ -69,7 +72,7 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
       setTimeMinutes(recipeToEdit.timeMinutes ? String(recipeToEdit.timeMinutes) : '');
       setCalories(recipeToEdit.calories ? String(recipeToEdit.calories) : '');
       setServings(recipeToEdit.servings ? String(recipeToEdit.servings) : '');
-      setCategory(recipeToEdit.category || '');
+      setSelectedCategories(getRecipeCategories(recipeToEdit));
       setDifficulty(recipeToEdit.difficulty || 'Fácil');
       setImageUrl(recipeToEdit.imageUrl || '');
       setIngredients(recipeToEdit.ingredients ? [...recipeToEdit.ingredients] : []);
@@ -85,9 +88,14 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
   // Category management state (no initial example categories)
   const [localCategories, setLocalCategories] = useState<string[]>([]);
   const [newCategoryInput, setNewCategoryInput] = useState('');
-  const [showCategoryManager, setShowCategoryManager] = useState(false);
 
   const availableCategories = categories !== undefined ? categories : localCategories;
+
+  const handleToggleCategory = (cat: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+    );
+  };
 
   const handleAddNewCategory = () => {
     const trimmed = newCategoryInput.trim();
@@ -98,7 +106,9 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
     if (!availableCategories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
       setLocalCategories((prev) => [...prev, trimmed]);
     }
-    setCategory(trimmed);
+    if (!selectedCategories.includes(trimmed)) {
+      setSelectedCategories((prev) => [...prev, trimmed]);
+    }
     setNewCategoryInput('');
   };
 
@@ -107,9 +117,7 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
       onDeleteCategory(catToDelete);
     }
     setLocalCategories((prev) => prev.filter((c) => c.toLowerCase() !== catToDelete.toLowerCase()));
-    if (category === catToDelete) {
-      setCategory('');
-    }
+    setSelectedCategories((prev) => prev.filter((c) => c.toLowerCase() !== catToDelete.toLowerCase()));
   };
 
   const presetImages = [
@@ -144,11 +152,18 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
       if (data.timeMinutes) setTimeMinutes(String(data.timeMinutes));
       if (data.calories) setCalories(String(data.calories));
       if (data.servings) setServings(String(data.servings));
-      if (data.category) {
-        setCategory(data.category);
-        if (!availableCategories.includes(data.category)) {
-          if (onAddCategory) onAddCategory(data.category);
-          setLocalCategories((prev) => [...prev, data.category]);
+      if (data.category || data.categories) {
+        const incomingCats: string[] = Array.isArray(data.categories) && data.categories.length > 0
+          ? data.categories
+          : data.category ? [data.category] : [];
+        incomingCats.forEach((cat) => {
+          if (!availableCategories.some((c) => c.toLowerCase() === cat.toLowerCase())) {
+            if (onAddCategory) onAddCategory(cat);
+            setLocalCategories((prev) => [...prev, cat]);
+          }
+        });
+        if (incomingCats.length > 0) {
+          setSelectedCategories(incomingCats);
         }
       }
       if (data.difficulty) setDifficulty(data.difficulty as Difficulty);
@@ -184,7 +199,14 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
       .map((s) => s.replace(/^\d+\.\s*/, '').trim())
       .filter((s) => s.length > 0);
 
-    const chosenCategory = category.trim() || (availableCategories.length > 0 ? availableCategories[0] : 'General');
+    const finalCategories =
+      selectedCategories.length > 0
+        ? selectedCategories
+        : availableCategories.length > 0
+        ? [availableCategories[0]]
+        : ['General'];
+    const primaryCategory = finalCategories[0] || 'General';
+
     const numMinutes = timeMinutes ? Number(timeMinutes) : 20;
     const numCalories = calories ? Number(calories) : 350;
     const numServings = servings ? Number(servings) : 1;
@@ -195,9 +217,10 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
       timeMinutes: numMinutes,
       calories: numCalories,
       servings: numServings,
-      category: chosenCategory || 'General',
+      category: primaryCategory,
+      categories: finalCategories,
       difficulty: difficulty || 'Fácil',
-      tags: [chosenCategory || 'General', difficulty || 'Fácil', `${numMinutes}m`].filter(Boolean),
+      tags: [...finalCategories, difficulty || 'Fácil', `${numMinutes}m`].filter(Boolean),
       imageUrl: imageUrl.trim() || 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=800&auto=format&fit=crop&q=80',
       ingredients: ingredients.filter((i) => i.trim().length > 0),
       instructions: instructionsArray,
@@ -427,80 +450,104 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-[#404943] uppercase tracking-wider mb-1.5">
-              Categoría *
-            </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3.5 py-2 text-sm bg-[#f8f9fa] border border-[#bfc9c1] rounded-xl focus:outline-none focus:border-[#0f5238]"
-            >
-              <option value="">-- Seleccionar categoría --</option>
-              {availableCategories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Categorías Management: Add new and delete existing categories */}
-          <div className="md:col-span-2 p-4 bg-[#f8f9fa] border border-[#e1e3e4] rounded-xl space-y-3">
-            <div className="flex items-center justify-between">
+          {/* Multi-Category Selection & Management Section */}
+          <div className="md:col-span-2 p-4 bg-[#f8f9fa] border border-[#e1e3e4] rounded-xl space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
               <div className="flex items-center gap-1.5">
                 <Tag className="w-4 h-4 text-[#0f5238]" />
-                <span className="text-xs font-bold text-[#191c1d] uppercase tracking-wider">
-                  Gestión de Categorías ({availableCategories.length})
-                </span>
+                <label className="text-xs font-bold text-[#191c1d] uppercase tracking-wider">
+                  Categorías de la Receta * ({selectedCategories.length} seleccionada{selectedCategories.length === 1 ? '' : 's'})
+                </label>
               </div>
               <span className="text-[11px] text-[#707973]">
-                Puedes crear nuevas o borrar las que no uses
+                Puedes asignar una o varias categorías haciendo clic en ellas
               </span>
             </div>
 
-            {/* List of categories with delete icon */}
-            {availableCategories.length === 0 ? (
-              <p className="text-xs text-[#707973] italic py-1">
-                No hay categorías creadas aún. Escribe un nombre abajo y pulsa Añadir para crear tu primera categoría.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {availableCategories.map((cat) => (
+            {/* Selected Categories Summary (if any selected) */}
+            {selectedCategories.length > 0 && (
+              <div className="p-2.5 bg-white rounded-lg border border-[#0f5238]/30 flex flex-wrap items-center gap-1.5 shadow-2xs">
+                <span className="text-[11px] font-bold text-[#0f5238] uppercase tracking-wide mr-1">
+                  Asignadas:
+                </span>
+                {selectedCategories.map((cat) => (
                   <span
-                    key={cat}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                      category === cat
-                        ? 'bg-[#b1f0ce]/60 border-[#0f5238] text-[#0f5238]'
-                        : 'bg-white border-[#bfc9c1] text-[#404943]'
-                    }`}
+                    key={`selected-${cat}`}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#0f5238] text-white shadow-2xs"
                   >
+                    <span>{cat}</span>
                     <button
                       type="button"
-                      onClick={() => setCategory(cat)}
-                      className="cursor-pointer hover:underline"
-                      title={`Seleccionar ${cat}`}
+                      onClick={() => handleToggleCategory(cat)}
+                      className="p-0.5 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
+                      title={`Desmarcar ${cat}`}
                     >
-                      {cat}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteCategoryItem(cat);
-                      }}
-                      title={`Eliminar categoría ${cat}`}
-                      className="p-0.5 rounded hover:bg-[#ffdad6] text-[#ba1a1a] transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-3 h-3" />
+                      <X className="w-3 h-3 stroke-[2.5]" />
                     </button>
                   </span>
                 ))}
               </div>
             )}
 
+            {/* List of all available categories with interactive toggle */}
+            <div>
+              <p className="text-[11px] text-[#707973] mb-2 font-medium">
+                Toca las categorías para activarlas o desactivarlas en esta receta:
+              </p>
+              {availableCategories.length === 0 ? (
+                <p className="text-xs text-[#707973] italic py-1">
+                  No hay categorías aún. Escribe un nombre abajo y pulsa Añadir para crear la primera.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {availableCategories.map((cat) => {
+                    const isSelected = selectedCategories.includes(cat);
+                    return (
+                      <span
+                        key={cat}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                          isSelected
+                            ? 'bg-[#0f5238] text-white border-[#0f5238] shadow-xs'
+                            : 'bg-white border-[#bfc9c1] text-[#404943] hover:border-[#0f5238] hover:bg-[#f3f4f5]'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleToggleCategory(cat)}
+                          className="flex items-center gap-1.5 cursor-pointer"
+                          title={isSelected ? `Quitar categoría ${cat}` : `Añadir categoría ${cat}`}
+                        >
+                          {isSelected ? (
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          ) : (
+                            <Plus className="w-3.5 h-3.5 text-[#707973]" />
+                          )}
+                          <span>{cat}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCategoryItem(cat);
+                          }}
+                          title={`Eliminar categoría ${cat} del sistema`}
+                          className={`p-0.5 rounded transition-colors cursor-pointer ml-0.5 ${
+                            isSelected
+                              ? 'hover:bg-white/20 text-white/80 hover:text-white'
+                              : 'hover:bg-[#ffdad6] text-[#707973] hover:text-[#ba1a1a]'
+                          }`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Add new category form */}
-            <div className="flex gap-2 pt-1">
+            <div className="flex gap-2 pt-2 border-t border-[#e1e3e4]">
               <input
                 type="text"
                 value={newCategoryInput}
@@ -511,7 +558,7 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
                     handleAddNewCategory();
                   }
                 }}
-                placeholder="Nombre de nueva categoría (ej: Vegano, Postre, Airfryer...)"
+                placeholder="Crear y asignar nueva categoría (ej: Vegano, Postre, Cena Rápida...)"
                 className="flex-1 px-3 py-2 text-xs md:text-sm bg-white border border-[#bfc9c1] rounded-lg focus:outline-none focus:border-[#0f5238]"
               />
               <button
@@ -520,7 +567,7 @@ export const AddRecipeView: React.FC<AddRecipeViewProps> = ({
                 className="px-3.5 py-2 bg-[#0f5238] hover:bg-[#2d6a4f] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Añadir Categoría</span>
+                <span>Crear Categoría</span>
               </button>
             </div>
           </div>

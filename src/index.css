@@ -35,3 +35,47 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Print Styles for Weekly Menu PDF Export */
+@media print {
+  @page {
+    size: landscape;
+    margin: 8mm;
+  }
+
+  body {
+    background-color: #ffffff !important;
+    color: #191c1d !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app navigation and interactive elements */
+  aside,
+  header,
+  nav,
+  .no-print,
+  button,
+  input,
+  select {
+    display: none !important;
+  }
+
+  /* Ensure the printable container fills page */
+  #printable-weekly-menu {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Hide other elements when printing */
+  body > div > div:not(#printable-root) {
+    display: none !important;
+  }
+}
+

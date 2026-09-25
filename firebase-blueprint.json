@@ -30,8 +30,12 @@
         },
         "category": {
           "type": "string",
-          "description": "Meal category",
+          "description": "Primary meal category",
           "maxLength": 60
+        },
+        "categories": {
+          "type": "array",
+          "description": "List of categories assigned to the recipe"
         },
         "timeMinutes": {
           "type": "number",

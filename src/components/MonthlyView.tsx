@@ -10,7 +10,7 @@ import {
   X,
   Utensils
 } from 'lucide-react';
-import { MonthPlan, DayPlan, Recipe, MealItem } from '../types';
+import { MonthPlan, DayPlan, Recipe, MealItem, getRecipeCategories } from '../types';
 import { SPANISH_MONTHS, SPANISH_DAYS_FULL } from '../utils/dateHelpers';
 
 interface MonthlyViewProps {
@@ -43,14 +43,20 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({
 
   const availableCategories = useMemo(() => {
     const cats = Array.from(
-      new Set([...(categories || []), ...recipes.map((r) => r.category).filter(Boolean)])
+      new Set([
+        ...(categories || []),
+        ...recipes.flatMap((r) => getRecipeCategories(r)).filter(Boolean)
+      ])
     );
     return ['Todas', ...cats];
   }, [recipes, categories]);
 
   const filteredRecipesForSlot = useMemo(() => {
     if (addCategoryFilter === 'Todas') return recipes;
-    return recipes.filter((r) => r.category === addCategoryFilter);
+    const target = addCategoryFilter.toLowerCase();
+    return recipes.filter((r) =>
+      getRecipeCategories(r).some((c) => c.toLowerCase() === target)
+    );
   }, [recipes, addCategoryFilter]);
 
   const year = currentDate.getFullYear();
@@ -552,7 +558,9 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({
                         >
                           <div className="flex-1 min-w-0 mr-2">
                             <div className="truncate font-semibold text-[#191c1d]">{r.name}</div>
-                            <div className="text-[10px] text-[#707973] mt-0.5">{r.category} • {r.timeMinutes}m</div>
+                            <div className="text-[10px] text-[#707973] mt-0.5 truncate">
+                              {getRecipeCategories(r).join(', ') || r.category || 'General'} • {r.timeMinutes}m
+                            </div>
                           </div>
                           <span className="text-[#9b4500] font-semibold shrink-0">{r.calories} kcal</span>
                         </button>

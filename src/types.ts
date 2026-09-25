@@ -20,7 +20,8 @@ export interface Recipe {
   timeMinutes: number;
   calories: number;
   servings: number;
-  category: RecipeCategory | string;
+  category?: RecipeCategory | string;
+  categories?: (RecipeCategory | string)[];
   difficulty: Difficulty;
   tags: string[];
   imageUrl: string;
@@ -29,6 +30,20 @@ export interface Recipe {
   sourceUrl?: string;
   isAiGenerated?: boolean;
   createdAt: string;
+}
+
+export function getRecipeCategories(recipe?: Partial<Recipe> | null): string[] {
+  if (!recipe) return [];
+  if (Array.isArray(recipe.categories) && recipe.categories.length > 0) {
+    const list = recipe.categories
+      .map((c) => (typeof c === 'string' ? c.trim() : ''))
+      .filter((c) => c.length > 0);
+    if (list.length > 0) return Array.from(new Set(list));
+  }
+  if (recipe.category && typeof recipe.category === 'string' && recipe.category.trim()) {
+    return [recipe.category.trim()];
+  }
+  return [];
 }
 
 export interface MealItem {

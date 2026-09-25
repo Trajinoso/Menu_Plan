@@ -147,7 +147,12 @@ app.get("/api/recipes", (_req, res) => {
 });
 
 app.post("/api/recipes", (req, res) => {
-  const category = (req.body.category && typeof req.body.category === "string" && req.body.category.trim()) ? req.body.category.trim() : "General";
+  const categories: string[] = Array.isArray(req.body.categories) && req.body.categories.length > 0
+    ? req.body.categories.map((c: any) => String(c).trim()).filter(Boolean)
+    : (req.body.category && typeof req.body.category === "string" && req.body.category.trim())
+    ? [req.body.category.trim()]
+    : ["General"];
+  const category = categories[0] || (typeof req.body.category === "string" && req.body.category.trim() ? req.body.category.trim() : "General");
   const difficulty = req.body.difficulty || "Fácil";
   const timeMinutes = Number(req.body.timeMinutes) || 20;
   const calories = Number(req.body.calories) || 350;
@@ -158,12 +163,13 @@ app.post("/api/recipes", (req, res) => {
     id: req.body.id || `rec-${Date.now()}`,
     name: req.body.name ? req.body.name.trim() : "Nueva Receta",
     category,
+    categories,
     difficulty,
     timeMinutes,
     calories,
     servings,
     createdAt: req.body.createdAt || new Date().toISOString().split("T")[0],
-    tags: req.body.tags && req.body.tags.length > 0 ? req.body.tags : [category, difficulty],
+    tags: req.body.tags && req.body.tags.length > 0 ? req.body.tags : [...categories, difficulty],
     ingredients: Array.isArray(req.body.ingredients) ? req.body.ingredients : [],
     instructions: Array.isArray(req.body.instructions) ? req.body.instructions : []
   };
@@ -186,10 +192,19 @@ app.put("/api/recipes/:id", (req, res) => {
     res.status(404).json({ error: "Receta no encontrada" });
     return;
   }
+  const categories: string[] = Array.isArray(req.body.categories) && req.body.categories.length > 0
+    ? req.body.categories.map((c: any) => String(c).trim()).filter(Boolean)
+    : (req.body.category && typeof req.body.category === "string" && req.body.category.trim())
+    ? [req.body.category.trim()]
+    : db.recipes[index].categories || [db.recipes[index].category || "General"];
+  const category = categories[0] || (typeof req.body.category === "string" && req.body.category.trim() ? req.body.category.trim() : "General");
+
   const updated: Recipe = {
     ...db.recipes[index],
     ...req.body,
-    id
+    id,
+    category,
+    categories
   };
   db.recipes[index] = updated;
 
@@ -283,9 +298,10 @@ app.post("/api/plans/assign", (req, res) => {
     return;
   }
 
+  const uniqueDates = Array.from(new Set(dates));
   const slotKey = mealType.toLowerCase() === "almuerzo" ? "lunch" : mealType.toLowerCase() === "cena" ? "dinner" : "breakfast";
 
-  dates.forEach((dateStr: string) => {
+  uniqueDates.forEach((dateStr: string) => {
     // Update weekly plan if date falls within or exists
     if (db.weeklyPlan.days && db.weeklyPlan.days[dateStr]) {
       const targetDay = db.weeklyPlan.days[dateStr];
@@ -436,7 +452,8 @@ app.post("/api/git/sync", (_req, res) => {
 
   markdown += `## 🍲 Recetario Guardado (${db.recipes.length} recetas)\n\n`;
   db.recipes.forEach(r => {
-    markdown += `### ${r.name} [${r.category} | ${r.difficulty}]\n`;
+    const catsStr = Array.isArray(r.categories) && r.categories.length > 0 ? r.categories.join(", ") : (r.category || "General");
+    markdown += `### ${r.name} [${catsStr} | ${r.difficulty}]\n`;
     markdown += `- **Tiempo:** ${r.timeMinutes} min | **Calorías:** ${r.calories} kcal | **Porciones:** ${r.servings}\n`;
     markdown += `- **Ingredientes:**\n`;
     r.ingredients.forEach(ing => {

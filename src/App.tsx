@@ -28,7 +28,7 @@ import {
   INITIAL_GIT_CONFIG,
   INITIAL_AI_SETTINGS
 } from './data/initialData';
-import { getCurrentWeekDates } from './utils/dateHelpers';
+import { getCurrentWeekDates, getDayNameFromISO } from './utils/dateHelpers';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 import {
   auth,
@@ -415,9 +415,15 @@ export function App() {
 
   // Save new recipe
   const handleSaveNewRecipe = async (newRecipeData: Omit<Recipe, 'id' | 'createdAt'>) => {
+    const categories = Array.isArray(newRecipeData.categories) && newRecipeData.categories.length > 0
+      ? newRecipeData.categories
+      : newRecipeData.category ? [newRecipeData.category] : ['General'];
+    const primaryCategory = categories[0] || newRecipeData.category || 'General';
+
     const fullRecipeData = {
       ...newRecipeData,
-      category: newRecipeData.category || 'General',
+      category: primaryCategory,
+      categories,
       difficulty: newRecipeData.difficulty || 'Fácil',
       timeMinutes: newRecipeData.timeMinutes || 20,
       calories: newRecipeData.calories || 350,
@@ -476,32 +482,42 @@ export function App() {
 
   // Save updated recipe
   const handleUpdateRecipe = async (updated: Recipe) => {
+    const categories = Array.isArray(updated.categories) && updated.categories.length > 0
+      ? updated.categories
+      : updated.category ? [updated.category] : ['General'];
+    const primaryCategory = categories[0] || updated.category || 'General';
+    const normalizedUpdated: Recipe = {
+      ...updated,
+      category: primaryCategory,
+      categories
+    };
+
     try {
-      const res = await fetch(`/api/recipes/${updated.id}`, {
+      const res = await fetch(`/api/recipes/${normalizedUpdated.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated)
+        body: JSON.stringify(normalizedUpdated)
       });
       if (res.ok) {
         const saved = await res.json();
         setRecipes((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
       } else {
-        setRecipes((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        setRecipes((prev) => prev.map((r) => (r.id === normalizedUpdated.id ? normalizedUpdated : r)));
       }
     } catch (err) {
-      setRecipes((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      setRecipes((prev) => prev.map((r) => (r.id === normalizedUpdated.id ? normalizedUpdated : r)));
     }
 
     // Propagate updated recipe info to any meals in plans
     const updateMealItem = (m: MealItem): MealItem => {
-      if (m.recipeId === updated.id) {
+      if (m.recipeId === normalizedUpdated.id) {
         return {
           ...m,
-          name: updated.name,
-          timeMinutes: updated.timeMinutes,
-          calories: updated.calories,
-          imageUrl: updated.imageUrl,
-          category: updated.category
+          name: normalizedUpdated.name,
+          timeMinutes: normalizedUpdated.timeMinutes,
+          calories: normalizedUpdated.calories,
+          imageUrl: normalizedUpdated.imageUrl,
+          category: primaryCategory
         };
       }
       return m;
@@ -646,15 +662,8 @@ export function App() {
 
   // Assign recipe to plan
   const handleAssignRecipeToPlan = async (recipe: Recipe, dates: string[], mealType: MealType) => {
-    const mealItem: MealItem = {
-      id: `meal-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      recipeId: recipe.id,
-      name: recipe.name,
-      timeMinutes: recipe.timeMinutes,
-      calories: recipe.calories,
-      imageUrl: recipe.imageUrl,
-      category: recipe.category
-    };
+    const uniqueDates = Array.from(new Set(dates));
+    if (uniqueDates.length === 0) return;
 
     let slotKey: 'breakfast' | 'lunch' | 'dinner' = 'lunch';
     if (mealType === 'Desayuno') {
@@ -665,69 +674,101 @@ export function App() {
       slotKey = 'lunch';
     }
 
-    // Optimistic state updates
-    setWeeklyPlan((prev) => {
-      const newDays = { ...prev.days };
-      dates.forEach((d) => {
-        if (newDays[d]) {
-          newDays[d] = {
-            ...newDays[d],
-            [slotKey]: [...(newDays[d][slotKey] || []), mealItem]
-          };
-        }
-      });
-      return { ...prev, days: newDays };
-    });
+    const mealItemId = `meal-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const mealItem: MealItem = {
+      id: mealItemId,
+      recipeId: recipe.id,
+      name: recipe.name,
+      timeMinutes: recipe.timeMinutes,
+      calories: recipe.calories,
+      imageUrl: recipe.imageUrl,
+      category: recipe.category
+    };
 
-    setMonthPlan((prev) => {
-      const newDays = { ...prev.days };
-      dates.forEach((d) => {
-        const existing = newDays[d] || {
-          date: d,
-          dayName: 'Día',
-          dayNumber: parseInt(d.split('-')[2] || '1', 10),
-          breakfast: [],
-          lunch: [],
-          dinner: []
-        };
-        newDays[d] = {
-          ...existing,
-          [slotKey]: [...(existing[slotKey] || []), mealItem]
-        };
-      });
-      return {
-        ...prev,
-        days: newDays,
-        plannedMealsCount: (Object.values(newDays) as DayPlan[]).reduce(
-          (acc, d) => acc + (d.breakfast?.length || 0) + (d.lunch?.length || 0) + (d.dinner?.length || 0),
-          0
-        )
+    // 1. Calculate updated weekly plan
+    const updatedWeeklyDays = { ...weeklyPlan.days };
+    uniqueDates.forEach((d) => {
+      const existing = updatedWeeklyDays[d] || {
+        date: d,
+        dayName: getDayNameFromISO(d),
+        dayNumber: parseInt(d.split('-')[2] || '1', 10),
+        breakfast: [],
+        lunch: [],
+        dinner: []
+      };
+      updatedWeeklyDays[d] = {
+        ...existing,
+        [slotKey]: [...(existing[slotKey] || []), mealItem]
       };
     });
 
-    showToast(`"${recipe.name}" añadido al ${mealType} de ${dates.length} día(s)`);
+    const updatedWeeklyPlan: WeeklyPlan = {
+      ...weeklyPlan,
+      days: updatedWeeklyDays
+    };
+    setWeeklyPlan(updatedWeeklyPlan);
 
+    // 2. Calculate updated month plan
+    const updatedMonthDays = { ...monthPlan.days };
+    uniqueDates.forEach((d) => {
+      const existing = updatedMonthDays[d] || {
+        date: d,
+        dayName: getDayNameFromISO(d),
+        dayNumber: parseInt(d.split('-')[2] || '1', 10),
+        breakfast: [],
+        lunch: [],
+        dinner: []
+      };
+      updatedMonthDays[d] = {
+        ...existing,
+        [slotKey]: [...(existing[slotKey] || []), mealItem]
+      };
+    });
+
+    const plannedMealsCount = (Object.values(updatedMonthDays) as DayPlan[]).reduce(
+      (acc, d) => acc + (d.breakfast?.length || 0) + (d.lunch?.length || 0) + (d.dinner?.length || 0),
+      0
+    );
+
+    const updatedMonthPlan: MonthPlan = {
+      ...monthPlan,
+      days: updatedMonthDays,
+      plannedMealsCount
+    };
+    setMonthPlan(updatedMonthPlan);
+
+    showToast(`"${recipe.name}" añadido al ${mealType} de ${uniqueDates.length} día(s)`);
+
+    // 3. Persist to server
     try {
-      const res = await fetch('/api/plans/assign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipeId: recipe.id,
-          recipeName: recipe.name,
-          imageUrl: recipe.imageUrl,
-          timeMinutes: recipe.timeMinutes,
-          calories: recipe.calories,
-          dates,
-          mealType
+      await Promise.all([
+        fetch('/api/plans/weekly', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedWeeklyPlan)
+        }),
+        fetch('/api/plans/monthly', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedMonthPlan)
         })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.weeklyPlan) setWeeklyPlan(data.weeklyPlan);
-        if (data.monthPlan) setMonthPlan(data.monthPlan);
-      }
+      ]);
     } catch (err) {
-      // Backend not running (e.g. GitHub Pages) - optimistic state is already applied
+      console.warn('Backend sync error:', err);
+    }
+
+    // 4. Persist to Firestore if authenticated
+    if (currentUser) {
+      setDoc(
+        doc(db, 'app_state', 'main'),
+        {
+          id: 'main',
+          weeklyPlan: updatedWeeklyPlan,
+          monthPlan: updatedMonthPlan,
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      ).catch((e) => console.warn('Firestore update plans:', e));
     }
   };
 

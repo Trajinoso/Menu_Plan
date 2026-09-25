@@ -35,6 +35,7 @@ service cloud.firestore {
         data.id is string && data.id.size() <= 128 &&
         data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
         (!('category' in data) || (data.category is string && data.category.size() <= 100)) &&
+        (!('categories' in data) || (data.categories is list && data.categories.size() <= 50)) &&
         (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
         (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 2048)) &&
         (!('timeMinutes' in data) || (data.timeMinutes is number && data.timeMinutes >= 0 && data.timeMinutes <= 1440)) &&

@@ -13,9 +13,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  Share2
+  Share2,
+  X,
+  Search,
+  FileDown,
+  Printer,
+  Check,
+  CheckCircle2,
+  Utensils
 } from 'lucide-react';
-import { WeeklyPlan, DayPlan, MealItem, Recipe } from '../types';
+import { WeeklyPlan, DayPlan, MealItem, Recipe, getRecipeCategories } from '../types';
 import {
   SPANISH_MONTHS,
   getTodayISO,
@@ -25,6 +32,7 @@ import {
   addDaysToDate,
   getDayNameFromISO
 } from '../utils/dateHelpers';
+import { generateWeeklyMenuPdf } from '../utils/pdfExport';
 
 interface WeeklyPlannerViewProps {
   plan: WeeklyPlan;
@@ -81,21 +89,70 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
 
   const [quickAddModal, setQuickAddModal] = useState<{ open: boolean; slot: 'lunch' | 'dinner' } | null>(null);
   const [addModalCategoryFilter, setAddModalCategoryFilter] = useState<string>('Todas');
+  const [modalSearchTerm, setModalSearchTerm] = useState<string>('');
+
+  // Export to PDF / Print state
+  const [isExportPdfModalOpen, setIsExportPdfModalOpen] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [pdfSuccess, setPdfSuccess] = useState(false);
+
+  const handleOpenQuickAdd = (slot: 'lunch' | 'dinner') => {
+    setAddModalCategoryFilter('Todas');
+    setModalSearchTerm('');
+    setQuickAddModal({ open: true, slot });
+  };
 
   const monthIdx = selectedDate ? (parseInt(selectedDate.split('-')[1], 10) - 1) : new Date().getMonth();
   const currentMonthName = SPANISH_MONTHS[monthIdx] || 'este mes';
 
   const modalCategories = useMemo(() => {
-    const cats = Array.from(
-      new Set([...(categories || []), ...recipes.map((r) => r.category).filter(Boolean)])
-    );
-    return ['Todas', ...cats];
+    const set = new Set<string>();
+    (categories || []).forEach((c) => {
+      if (c && c.trim()) set.add(c.trim());
+    });
+    recipes.forEach((r) => {
+      getRecipeCategories(r).forEach((c) => {
+        if (c && c.trim()) set.add(c.trim());
+      });
+    });
+    return ['Todas', ...Array.from(set)];
   }, [recipes, categories]);
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { Todas: recipes.length };
+    recipes.forEach((r) => {
+      const cats = getRecipeCategories(r);
+      cats.forEach((cat) => {
+        const trimmed = cat.trim();
+        if (trimmed) {
+          counts[trimmed] = (counts[trimmed] || 0) + 1;
+        }
+      });
+    });
+    return counts;
+  }, [recipes]);
+
   const filteredModalRecipes = useMemo(() => {
-    if (addModalCategoryFilter === 'Todas') return recipes;
-    return recipes.filter((r) => r.category === addModalCategoryFilter);
-  }, [recipes, addModalCategoryFilter]);
+    let result = recipes;
+    if (addModalCategoryFilter && addModalCategoryFilter !== 'Todas') {
+      const target = addModalCategoryFilter.trim().toLowerCase();
+      result = result.filter((r) => {
+        const cats = getRecipeCategories(r).map((c) => c.toLowerCase());
+        return cats.includes(target);
+      });
+    }
+    if (modalSearchTerm.trim()) {
+      const q = modalSearchTerm.trim().toLowerCase();
+      result = result.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
+          (r.description && r.description.toLowerCase().includes(q)) ||
+          getRecipeCategories(r).some((c) => c.toLowerCase().includes(q)) ||
+          r.ingredients?.some((ing) => ing.toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [recipes, addModalCategoryFilter, modalSearchTerm]);
 
   // Obtener la información del día seleccionado
   const currentDay: DayPlan = plan.days[selectedDate] || monthDays?.[selectedDate] || {
@@ -178,7 +235,7 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
 
   const handleAddMealToSlot = (slot: 'lunch' | 'dinner', recipe: Recipe) => {
     const newMeal: MealItem = {
-      id: `meal-${Date.now()}`,
+      id: `meal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       recipeId: recipe.id,
       name: recipe.name,
       timeMinutes: recipe.timeMinutes,
@@ -230,6 +287,58 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
     Viernes: 'VIE',
     Sábado: 'SÁB',
     Domingo: 'DOM'
+  };
+
+  // Weekly stats for PDF export and printable summary
+  const weeklyStats = useMemo(() => {
+    let totalMeals = 0;
+    let totalCaloriesAll = 0;
+    let plannedDaysCount = 0;
+    const uniqueMealsMap = new Map<string, { meal: MealItem; count: number }>();
+
+    weekDays.forEach((wd) => {
+      const d = plan.days[wd.date] || monthDays?.[wd.date];
+      const dayMeals = [...(d?.breakfast || []), ...(d?.lunch || []), ...(d?.dinner || [])];
+      if (dayMeals.length > 0) plannedDaysCount++;
+      totalMeals += dayMeals.length;
+
+      dayMeals.forEach((m) => {
+        totalCaloriesAll += m.calories || 0;
+        const existing = uniqueMealsMap.get(m.name);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          uniqueMealsMap.set(m.name, { meal: m, count: 1 });
+        }
+      });
+    });
+
+    const avgDailyKcal = plannedDaysCount > 0 ? Math.round(totalCaloriesAll / plannedDaysCount) : 0;
+    const uniqueMeals = Array.from(uniqueMealsMap.values());
+    return { totalMeals, plannedDaysCount, avgDailyKcal, totalCaloriesAll, uniqueMeals };
+  }, [weekDays, plan.days, monthDays]);
+
+  const handleExportDirectPdf = () => {
+    setIsGeneratingPdf(true);
+    try {
+      generateWeeklyMenuPdf({
+        weekTitle: currentWeekTitle,
+        weekStart,
+        weekEnd,
+        weekDays,
+        planDays: plan.days
+      });
+      setPdfSuccess(true);
+      setTimeout(() => setPdfSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handlePrintSheet = () => {
+    window.print();
   };
 
   return (
@@ -303,7 +412,19 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
               className="text-xs font-semibold text-[#0f5238] bg-[#f3f4f5] hover:bg-[#e7e8e9] px-3 py-1.5 rounded-xl border border-[#e1e3e4] transition-colors flex items-center gap-1.5 cursor-pointer ml-auto md:ml-0"
             >
               <Calendar className="w-3.5 h-3.5" />
-              <span>Ver Mes Completo</span>
+              <span className="hidden sm:inline">Ver Mes Completo</span>
+              <span className="sm:hidden">Mes</span>
+            </button>
+
+            {/* Exportar a PDF Button */}
+            <button
+              type="button"
+              onClick={() => setIsExportPdfModalOpen(true)}
+              className="text-xs font-semibold text-white bg-[#0f5238] hover:bg-[#2d6a4f] px-3.5 py-1.5 rounded-xl border border-[#0f5238] transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-98"
+              title="Exportar menú de la semana a PDF limpio para imprimir"
+            >
+              <FileDown className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Exportar a PDF</span>
             </button>
           </div>
         </div>
@@ -378,10 +499,7 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
             </div>
             <button
               type="button"
-              onClick={() => {
-                setAddModalCategoryFilter('Todas');
-                setQuickAddModal({ open: true, slot: 'lunch' });
-              }}
+              onClick={() => handleOpenQuickAdd('lunch')}
               className="text-xs font-semibold text-[#0f5238] hover:bg-[#b1f0ce]/30 px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -455,10 +573,7 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
               /* Empty Slot Dropzone */
               <button
                 type="button"
-                onClick={() => {
-                  setAddModalCategoryFilter('Todas');
-                  setQuickAddModal({ open: true, slot: 'lunch' });
-                }}
+                onClick={() => handleOpenQuickAdd('lunch')}
                 className="flex-1 min-h-[180px] border-2 border-dashed border-[#bfc9c1] hover:border-[#0f5238] rounded-xl flex flex-col items-center justify-center text-[#707973] hover:text-[#0f5238] bg-[#f8f9fa]/60 hover:bg-[#b1f0ce]/10 transition-all cursor-pointer p-6 group"
               >
                 <div className="w-10 h-10 rounded-full bg-white shadow-2xs flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
@@ -489,10 +604,7 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
             </div>
             <button
               type="button"
-              onClick={() => {
-                setAddModalCategoryFilter('Todas');
-                setQuickAddModal({ open: true, slot: 'dinner' });
-              }}
+              onClick={() => handleOpenQuickAdd('dinner')}
               className="text-xs font-semibold text-[#0f5238] hover:bg-[#b1f0ce]/30 px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -566,10 +678,7 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
               /* Empty Slot Dropzone */
               <button
                 type="button"
-                onClick={() => {
-                  setAddModalCategoryFilter('Todas');
-                  setQuickAddModal({ open: true, slot: 'dinner' });
-                }}
+                onClick={() => handleOpenQuickAdd('dinner')}
                 className="flex-1 min-h-[180px] border-2 border-dashed border-[#bfc9c1] hover:border-[#0f5238] rounded-xl flex flex-col items-center justify-center text-[#707973] hover:text-[#0f5238] bg-[#f8f9fa]/60 hover:bg-[#b1f0ce]/10 transition-all cursor-pointer p-6 group"
               >
                 <div className="w-10 h-10 rounded-full bg-white shadow-2xs flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
@@ -583,39 +692,47 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
         </div>
       </div>
 
-      {/* Quick Add Meal Modal */}
+      {/* Quick Add Meal Modal - Responsive and optimized for Mobile */}
       {quickAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-[#e1e3e4] space-y-4 max-h-[85vh] flex flex-col">
-            <div className="flex justify-between items-center pb-3 border-b border-[#e1e3e4]">
-              <div>
-                <h3 className="text-lg font-bold text-[#191c1d] font-heading">
-                  Añadir al {quickAddModal.slot === 'lunch' ? 'Almuerzo' : 'Cena'}
-                </h3>
-                <p className="text-xs text-[#707973]">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-5 shadow-2xl border border-[#e1e3e4] flex flex-col max-h-[92vh] sm:max-h-[85vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#e1e3e4] gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-base sm:text-lg">
+                    {quickAddModal.slot === 'lunch' ? '☀️' : '🌙'}
+                  </span>
+                  <h3 className="text-base sm:text-lg font-bold text-[#191c1d] font-heading truncate">
+                    Añadir al {quickAddModal.slot === 'lunch' ? 'Almuerzo' : 'Cena'}
+                  </h3>
+                </div>
+                <p className="text-xs text-[#707973] truncate mt-0.5 capitalize">
                   {currentDay.dayName}, {currentDay.dayNumber} de {currentMonthName}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setQuickAddModal(null)}
-                className="text-[#707973] hover:text-[#191c1d] text-lg font-bold p-1 cursor-pointer"
+                className="w-8 h-8 rounded-full bg-[#f3f4f5] hover:bg-[#e7e8e9] text-[#707973] hover:text-[#191c1d] flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+                aria-label="Cerrar ventana"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Quick Actions (Create or AI) */}
+            <div className="grid grid-cols-2 gap-2 pt-3 pb-2">
               <button
                 type="button"
                 onClick={() => {
                   setQuickAddModal(null);
                   onOpenAddRecipe();
                 }}
-                className="flex-1 py-2 px-3 rounded-lg bg-[#f3f4f5] hover:bg-[#e7e8e9] text-xs font-semibold text-[#0f5238] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                className="py-2 px-2.5 rounded-xl bg-[#f3f4f5] hover:bg-[#e7e8e9] text-xs font-semibold text-[#0f5238] flex items-center justify-center gap-1.5 transition-colors cursor-pointer truncate"
               >
-                <Plus className="w-4 h-4" />
-                <span>Crear Nueva Receta</span>
+                <Plus className="w-4 h-4 shrink-0" />
+                <span className="truncate">Nueva Receta</span>
               </button>
               <button
                 type="button"
@@ -623,64 +740,112 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                   setQuickAddModal(null);
                   onOpenGenerateAI();
                 }}
-                className="flex-1 py-2 px-3 rounded-lg bg-[#ffdbc9] hover:bg-[#fc8a40] hover:text-white text-xs font-semibold text-[#9b4500] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                className="py-2 px-2.5 rounded-xl bg-[#ffdbc9]/60 hover:bg-[#ffdbc9] text-xs font-semibold text-[#9b4500] flex items-center justify-center gap-1.5 transition-colors cursor-pointer truncate"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>Sugerir con IA</span>
+                <Sparkles className="w-4 h-4 shrink-0 text-[#fc8a40]" />
+                <span className="truncate">Sugerir con IA</span>
               </button>
             </div>
 
-            <div className="flex items-center justify-between gap-2 pt-1">
-              <p className="text-xs font-bold text-[#404943] uppercase tracking-wider">
-                Filtrar por Categoría:
-              </p>
-              <span className="text-[11px] text-[#707973]">
-                {filteredModalRecipes.length} {filteredModalRecipes.length === 1 ? 'receta' : 'recetas'}
-              </span>
+            {/* Search Input */}
+            <div className="relative pt-1 pb-2">
+              <Search className="w-4 h-4 text-[#707973] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={modalSearchTerm}
+                onChange={(e) => setModalSearchTerm(e.target.value)}
+                placeholder="Buscar en el recetario..."
+                className="w-full pl-9 pr-8 py-2 text-xs bg-[#f8f9fa] border border-[#bfc9c1] rounded-xl focus:outline-none focus:border-[#0f5238] focus:ring-1 focus:ring-[#0f5238]"
+              />
+              {modalSearchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setModalSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#707973] hover:text-[#191c1d]"
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
-            {/* Category Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 custom-scrollbar">
-              {modalCategories.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setAddModalCategoryFilter(cat)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                    addModalCategoryFilter === cat
-                      ? 'bg-[#0f5238] text-white shadow-2xs'
-                      : 'bg-[#f3f4f5] text-[#404943] hover:bg-[#e7e8e9]'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
+            {/* Category Navigation Bar */}
+            <div className="pt-1 pb-2">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[11px] font-bold text-[#404943] uppercase tracking-wider">
+                  Categorías:
+                </span>
+                <span className="text-[11px] text-[#707973]">
+                  {filteredModalRecipes.length} {filteredModalRecipes.length === 1 ? 'receta' : 'recetas'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 no-scrollbar touch-pan-x w-full">
+                {modalCategories.map((cat) => {
+                  const isSelected = addModalCategoryFilter === cat;
+                  const count = categoryCounts[cat] ?? 0;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setAddModalCategoryFilter(cat)}
+                      className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-[#0f5238] text-white shadow-2xs'
+                          : 'bg-[#f3f4f5] text-[#404943] hover:bg-[#e7e8e9] hover:text-[#191c1d]'
+                      }`}
+                    >
+                      <span>{cat}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                        isSelected ? 'bg-white/25 text-white' : 'bg-[#e1e3e4] text-[#707973]'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Recipes Quick List */}
-            <div className="overflow-y-auto space-y-2 flex-1 pr-1 custom-scrollbar">
+            <div className="overflow-y-auto space-y-2 flex-1 pr-1 custom-scrollbar min-h-0 pt-1">
               {filteredModalRecipes.length === 0 ? (
-                <div className="text-center py-8 text-xs text-[#707973] italic">
-                  No hay recetas disponibles en la categoría "{addModalCategoryFilter}".
+                <div className="text-center py-8 text-xs text-[#707973] space-y-1">
+                  <p className="font-semibold text-[#191c1d]">No se encontraron recetas</p>
+                  <p className="text-[11px]">
+                    {modalSearchTerm
+                      ? `Ninguna receta coincide con "${modalSearchTerm}".`
+                      : `No hay recetas en la categoría "${addModalCategoryFilter}".`}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddModalCategoryFilter('Todas');
+                      setModalSearchTerm('');
+                    }}
+                    className="mt-2 text-xs text-[#0f5238] font-bold hover:underline cursor-pointer"
+                  >
+                    Mostrar todas las recetas
+                  </button>
                 </div>
               ) : (
                 filteredModalRecipes.map((rec) => (
                   <div
                     key={rec.id}
                     onClick={() => handleAddMealToSlot(quickAddModal.slot, rec)}
-                    className="flex items-center gap-3 p-2.5 rounded-xl border border-[#e1e3e4] hover:border-[#0f5238] hover:bg-[#b1f0ce]/10 cursor-pointer transition-all"
+                    className="flex items-center gap-3 p-2.5 rounded-xl border border-[#e1e3e4] hover:border-[#0f5238] hover:bg-[#b1f0ce]/10 cursor-pointer transition-all active:scale-[0.99] group"
                   >
                     <img
                       src={rec.imageUrl}
                       alt={rec.name}
-                      className="w-14 h-14 rounded-lg object-cover border border-[#e1e3e4] shrink-0"
+                      className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg object-cover border border-[#e1e3e4] shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-semibold text-[#191c1d] truncate">
+                      <h4 className="text-xs sm:text-sm font-semibold text-[#191c1d] group-hover:text-[#0f5238] truncate transition-colors">
                         {rec.name}
                       </h4>
-                      <div className="flex items-center gap-2 text-xs text-[#707973]">
-                        <span className="font-medium text-[#0f5238]">{rec.category}</span>
+                      <div className="flex items-center gap-2 text-[11px] sm:text-xs text-[#707973] mt-0.5">
+                        <span className="font-medium text-[#0f5238] truncate max-w-[140px]" title={getRecipeCategories(rec).join(', ')}>
+                          {getRecipeCategories(rec).join(', ') || rec.category || 'General'}
+                        </span>
                         <span>•</span>
                         <span>{rec.timeMinutes}m</span>
                         <span>•</span>
@@ -689,13 +854,358 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                     </div>
                     <button
                       type="button"
-                      className="px-3 py-1.5 bg-[#0f5238] hover:bg-[#2d6a4f] text-white text-xs font-semibold rounded-lg shrink-0 cursor-pointer"
+                      className="px-3 py-1.5 bg-[#0f5238] group-hover:bg-[#2d6a4f] text-white text-xs font-semibold rounded-lg shrink-0 cursor-pointer shadow-2xs"
                     >
                       Elegir
                     </button>
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Clean Printable Sheet for window.print() and A4 Landscape printing */}
+      <div id="printable-weekly-menu" className="hidden print:block p-6 bg-white text-[#191c1d]">
+        <div className="border-b-2 border-[#0f5238] pb-4 mb-4 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-extrabold tracking-tight text-[#0f5238]">MENUMASTER</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#707973] border-l border-[#bfc9c1] pl-2">
+                Plan Semanal de Comidas
+              </span>
+            </div>
+            <h1 className="text-2xl font-black text-[#191c1d] mt-1">{currentWeekTitle}</h1>
+          </div>
+          <div className="text-right text-xs text-[#707973]">
+            <p className="font-semibold text-[#0f5238]">
+              {weeklyStats.totalMeals} platos planificados • {weeklyStats.avgDailyKcal > 0 ? `~${weeklyStats.avgDailyKcal} kcal/día` : 'N/A'}
+            </p>
+            <p className="mt-0.5">Impreso: {new Date().toLocaleDateString('es-ES')}</p>
+          </div>
+        </div>
+
+        {/* 7-Day Matrix Table */}
+        <table className="w-full border-collapse border border-[#bfc9c1] text-xs">
+          <thead>
+            <tr className="bg-[#0f5238] text-white">
+              <th className="p-2 border border-[#bfc9c1] text-center w-24">Comida</th>
+              {weekDays.map((wd) => (
+                <th key={wd.date} className="p-2 border border-[#bfc9c1] text-center">
+                  <span className="block font-bold uppercase">{wd.dayName}</span>
+                  <span className="text-[11px] font-normal opacity-90">{wd.dayNumber}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Almuerzo */}
+            <tr className="border-b border-[#bfc9c1]">
+              <td className="p-2 font-bold bg-[#f8f9fa] border border-[#bfc9c1] text-center text-[#0f5238]">
+                Almuerzo
+              </td>
+              {weekDays.map((wd) => {
+                const d = plan.days[wd.date] || monthDays?.[wd.date];
+                const meals = d?.lunch || [];
+                return (
+                  <td key={wd.date} className="p-2 border border-[#bfc9c1] align-top">
+                    {meals.length === 0 ? (
+                      <span className="text-[#707973] italic text-[11px]">—</span>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {meals.map((m) => (
+                          <div key={m.id} className="leading-tight">
+                            <p className="font-bold text-[#191c1d]">{m.name}</p>
+                            <p className="text-[10px] text-[#707973]">
+                              {m.calories ? `${m.calories} kcal` : ''} {m.timeMinutes ? `• ${m.timeMinutes}m` : ''}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+
+            {/* Cena */}
+            <tr className="border-b border-[#bfc9c1]">
+              <td className="p-2 font-bold bg-[#f8f9fa] border border-[#bfc9c1] text-center text-[#0f5238]">
+                Cena
+              </td>
+              {weekDays.map((wd) => {
+                const d = plan.days[wd.date] || monthDays?.[wd.date];
+                const meals = d?.dinner || [];
+                return (
+                  <td key={wd.date} className="p-2 border border-[#bfc9c1] align-top">
+                    {meals.length === 0 ? (
+                      <span className="text-[#707973] italic text-[11px]">—</span>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {meals.map((m) => (
+                          <div key={m.id} className="leading-tight">
+                            <p className="font-bold text-[#191c1d]">{m.name}</p>
+                            <p className="text-[10px] text-[#707973]">
+                              {m.calories ? `${m.calories} kcal` : ''} {m.timeMinutes ? `• ${m.timeMinutes}m` : ''}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+
+            {/* Total Kcal */}
+            <tr className="bg-[#b1f0ce]/20 font-bold">
+              <td className="p-2 border border-[#bfc9c1] text-center text-[#0f5238]">
+                Total Kcal
+              </td>
+              {weekDays.map((wd) => {
+                const d = plan.days[wd.date] || monthDays?.[wd.date];
+                const dayKcal =
+                  (d?.breakfast || []).reduce((acc, m) => acc + (m.calories || 0), 0) +
+                  (d?.lunch || []).reduce((acc, m) => acc + (m.calories || 0), 0) +
+                  (d?.dinner || []).reduce((acc, m) => acc + (m.calories || 0), 0);
+                return (
+                  <td key={wd.date} className="p-2 border border-[#bfc9c1] text-center text-[#9b4500]">
+                    {dayKcal > 0 ? `${dayKcal} kcal` : '—'}
+                  </td>
+                );
+              })}
+            </tr>
+          </tbody>
+        </table>
+
+        <div className="mt-4 pt-3 border-t border-[#bfc9c1] flex items-center justify-between text-[10px] text-[#707973]">
+          <span>MenuMaster • Diseñado para una alimentación sana, organizada y variada.</span>
+          <span>Impresión directa de alta calidad</span>
+        </div>
+      </div>
+
+      {/* Export to PDF / Print Preview Modal */}
+      {isExportPdfModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 no-print">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-[#e1e3e4] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-[#e1e3e4] flex items-center justify-between bg-white shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-[#0f5238]/10 text-[#0f5238]">
+                  <FileDown className="w-5 h-5 stroke-[2.5]" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#191c1d] font-heading">
+                    Exportar Menú Semanal a PDF
+                  </h3>
+                  <p className="text-xs text-[#707973]">
+                    {currentWeekTitle} • Formato limpio y organizado listo para imprimir
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsExportPdfModalOpen(false)}
+                className="p-1.5 rounded-lg text-[#707973] hover:text-[#191c1d] hover:bg-[#edeeef] cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Preview Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar bg-[#f8f9fa]">
+              {/* Stats Bar */}
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                <div className="p-3 bg-white rounded-xl border border-[#e1e3e4] text-center">
+                  <span className="text-[10px] font-bold text-[#707973] uppercase tracking-wider block">
+                    Platos Planificados
+                  </span>
+                  <span className="text-base sm:text-lg font-bold text-[#0f5238]">
+                    {weeklyStats.totalMeals} comidas
+                  </span>
+                </div>
+                <div className="p-3 bg-white rounded-xl border border-[#e1e3e4] text-center">
+                  <span className="text-[10px] font-bold text-[#707973] uppercase tracking-wider block">
+                    Días con Menú
+                  </span>
+                  <span className="text-base sm:text-lg font-bold text-[#191c1d]">
+                    {weeklyStats.plannedDaysCount} de 7 días
+                  </span>
+                </div>
+                <div className="p-3 bg-white rounded-xl border border-[#e1e3e4] text-center">
+                  <span className="text-[10px] font-bold text-[#707973] uppercase tracking-wider block">
+                    Promedio Diario
+                  </span>
+                  <span className="text-base sm:text-lg font-bold text-[#9b4500]">
+                    {weeklyStats.avgDailyKcal > 0 ? `${weeklyStats.avgDailyKcal} kcal` : 'N/A'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Visual Sheet Preview Box */}
+              <div className="bg-white p-4 sm:p-5 rounded-xl border border-[#bfc9c1] shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-[#e1e3e4] pb-2.5">
+                  <span className="text-xs font-bold text-[#0f5238] uppercase tracking-wider flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4" />
+                    Vista Previa de la Plantilla de Impresión
+                  </span>
+                  <span className="text-[11px] text-[#707973] hidden sm:inline">
+                    Hoja A4 Horizontal organizada
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto pb-2 custom-scrollbar">
+                  <div className="min-w-[640px] grid grid-cols-7 gap-2">
+                    {weekDays.map((wd) => {
+                      const d = plan.days[wd.date] || monthDays?.[wd.date];
+                      const lunches = d?.lunch || [];
+                      const dinners = d?.dinner || [];
+                      const dayKcal =
+                        (d?.breakfast || []).reduce((acc, m) => acc + (m.calories || 0), 0) +
+                        lunches.reduce((acc, m) => acc + (m.calories || 0), 0) +
+                        dinners.reduce((acc, m) => acc + (m.calories || 0), 0);
+
+                      return (
+                        <div
+                          key={wd.date}
+                          className="bg-[#f8f9fa] rounded-xl border border-[#e1e3e4] p-2.5 flex flex-col justify-between space-y-2"
+                        >
+                          {/* Day Header */}
+                          <div className="text-center pb-1.5 border-b border-[#e1e3e4]">
+                            <span className="text-xs font-extrabold text-[#0f5238] block uppercase">
+                              {wd.dayName}
+                            </span>
+                            <span className="text-[11px] text-[#707973] font-semibold">
+                              {wd.dayNumber}
+                            </span>
+                          </div>
+
+                          {/* Almuerzo */}
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold text-[#0f5238] uppercase tracking-wider block">
+                              Almuerzo
+                            </span>
+                            {lunches.length === 0 ? (
+                              <p className="text-[11px] text-[#707973] italic">Sin planificar</p>
+                            ) : (
+                              lunches.map((m) => (
+                                <div key={m.id} className="bg-white p-1.5 rounded-lg border border-[#e1e3e4] text-[11px]">
+                                  <p className="font-bold text-[#191c1d] leading-tight line-clamp-2">{m.name}</p>
+                                  <p className="text-[10px] text-[#9b4500] font-medium mt-0.5">{m.calories} kcal</p>
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          {/* Cena */}
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold text-[#0f5238] uppercase tracking-wider block">
+                              Cena
+                            </span>
+                            {dinners.length === 0 ? (
+                              <p className="text-[11px] text-[#707973] italic">Sin planificar</p>
+                            ) : (
+                              dinners.map((m) => (
+                                <div key={m.id} className="bg-white p-1.5 rounded-lg border border-[#e1e3e4] text-[11px]">
+                                  <p className="font-bold text-[#191c1d] leading-tight line-clamp-2">{m.name}</p>
+                                  <p className="text-[10px] text-[#9b4500] font-medium mt-0.5">{m.calories} kcal</p>
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          {/* Total Day Kcal */}
+                          <div className="pt-1.5 border-t border-[#e1e3e4] text-center">
+                            <span className="text-[10px] font-bold text-[#707973]">
+                              Total: <strong className="text-[#9b4500]">{dayKcal > 0 ? `${dayKcal} kcal` : '—'}</strong>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Unique Dishes Summary for the week */}
+              {weeklyStats.uniqueMeals.length > 0 && (
+                <div className="p-3.5 bg-white rounded-xl border border-[#e1e3e4] space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#191c1d]">
+                    <Utensils className="w-3.5 h-3.5 text-[#0f5238]" />
+                    <span>Recetas programadas esta semana ({weeklyStats.uniqueMeals.length})</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {weeklyStats.uniqueMeals.map(({ meal, count }) => (
+                      <span
+                        key={meal.name}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-[#f8f9fa] border border-[#bfc9c1] text-[#191c1d]"
+                      >
+                        <span className="font-medium">{meal.name}</span>
+                        {count > 1 && (
+                          <span className="px-1 py-0.2 rounded bg-[#0f5238] text-white text-[10px] font-bold">
+                            x{count}
+                          </span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Feedback Success Message */}
+              {pdfSuccess && (
+                <div className="p-3 bg-[#b1f0ce]/40 border border-[#0f5238]/30 rounded-xl text-xs font-semibold text-[#0f5238] flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-[#0f5238]" />
+                  <span>¡PDF generado y descargado correctamente en tu dispositivo!</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="p-4 sm:p-5 border-t border-[#e1e3e4] bg-white flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+              <span className="text-[11px] text-[#707973] text-center sm:text-left">
+                Elige descargar el archivo PDF directo o usar el cuadro de diálogo para imprimir en papel.
+              </span>
+
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsExportPdfModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-[#707973] hover:text-[#191c1d] hover:bg-[#edeeef] transition-colors cursor-pointer"
+                >
+                  Cerrar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintSheet}
+                  className="px-4 py-2.5 bg-white hover:bg-[#f3f4f5] text-[#191c1d] border border-[#bfc9c1] rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-98"
+                  title="Abrir ventana de impresión del navegador"
+                >
+                  <Printer className="w-4 h-4 text-[#404943]" />
+                  <span>Imprimir</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportDirectPdf}
+                  disabled={isGeneratingPdf}
+                  className="px-5 py-2.5 bg-[#0f5238] hover:bg-[#2d6a4f] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-all active:scale-98 disabled:opacity-60"
+                  title="Descargar archivo PDF estructurado"
+                >
+                  {isGeneratingPdf ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Generando PDF...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileDown className="w-4 h-4 stroke-[2.5]" />
+                      <span>Descargar PDF</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
