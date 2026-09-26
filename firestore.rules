@@ -32,36 +32,36 @@ service cloud.firestore {
     // Recipe entity validation
     function isValidRecipe(data) {
       return data.keys().hasAll(['id', 'name']) &&
-        data.id is string && data.id.size() <= 128 &&
-        data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
-        (!('category' in data) || (data.category is string && data.category.size() <= 100)) &&
-        (!('categories' in data) || (data.categories is list && data.categories.size() <= 50)) &&
-        (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
-        (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 2048)) &&
-        (!('timeMinutes' in data) || (data.timeMinutes is number && data.timeMinutes >= 0 && data.timeMinutes <= 1440)) &&
-        (!('calories' in data) || (data.calories is number && data.calories >= 0 && data.calories <= 10000)) &&
-        (!('servings' in data) || (data.servings is number && data.servings >= 0 && data.servings <= 100)) &&
-        (!('difficulty' in data) || (data.difficulty is string && data.difficulty.size() <= 50)) &&
-        (!('ingredients' in data) || (data.ingredients is list && data.ingredients.size() <= 200)) &&
-        (!('instructions' in data) || (data.instructions is list && data.instructions.size() <= 200)) &&
-        (!('tags' in data) || (data.tags is list && data.tags.size() <= 50)) &&
-        (!('sourceUrl' in data) || (data.sourceUrl is string && data.sourceUrl.size() <= 2048)) &&
-        (!('isAiGenerated' in data) || (data.isAiGenerated is bool)) &&
-        (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 60)) &&
-        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 60)) &&
-        (!('userId' in data) || (data.userId is string && data.userId.size() <= 128));
+        data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 500 &&
+        (!('category' in data) || data.category == null || (data.category is string && data.category.size() <= 200)) &&
+        (!('categories' in data) || data.categories == null || (data.categories is list && data.categories.size() <= 100)) &&
+        (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 10000)) &&
+        (!('imageUrl' in data) || data.imageUrl == null || (data.imageUrl is string && data.imageUrl.size() <= 1000000)) &&
+        (!('timeMinutes' in data) || data.timeMinutes == null || (data.timeMinutes is number) || (data.timeMinutes is string)) &&
+        (!('calories' in data) || data.calories == null || (data.calories is number) || (data.calories is string)) &&
+        (!('servings' in data) || data.servings == null || (data.servings is number) || (data.servings is string)) &&
+        (!('difficulty' in data) || data.difficulty == null || (data.difficulty is string && data.difficulty.size() <= 100)) &&
+        (!('ingredients' in data) || data.ingredients == null || (data.ingredients is list && data.ingredients.size() <= 500)) &&
+        (!('instructions' in data) || data.instructions == null || (data.instructions is list && data.instructions.size() <= 500)) &&
+        (!('tags' in data) || data.tags == null || (data.tags is list && data.tags.size() <= 100)) &&
+        (!('sourceUrl' in data) || data.sourceUrl == null || (data.sourceUrl is string && data.sourceUrl.size() <= 10000)) &&
+        (!('isAiGenerated' in data) || data.isAiGenerated == null || (data.isAiGenerated is bool)) &&
+        (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 100)) &&
+        (!('updatedAt' in data) || data.updatedAt == null || (data.updatedAt is string && data.updatedAt.size() <= 100)) &&
+        (!('userId' in data) || data.userId == null || (data.userId is string && data.userId.size() <= 128));
     }
 
     // AppState entity validation
     function isValidAppState(data) {
       return data.keys().hasAll(['id']) &&
-        data.id is string && data.id.size() <= 128 &&
-        (!('categories' in data) || (data.categories is list && data.categories.size() <= 200)) &&
-        (!('history' in data) || (data.history is list && data.history.size() <= 1000)) &&
-        (!('weeklyPlan' in data) || data.weeklyPlan is map) &&
-        (!('monthPlan' in data) || data.monthPlan is map) &&
-        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 100)) &&
-        (!('userId' in data) || (data.userId is string && data.userId.size() <= 128));
+        data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+        (!('categories' in data) || data.categories == null || (data.categories is list && data.categories.size() <= 500)) &&
+        (!('history' in data) || data.history == null || (data.history is list && data.history.size() <= 1000)) &&
+        (!('weeklyPlan' in data) || data.weeklyPlan == null || data.weeklyPlan is map) &&
+        (!('monthPlan' in data) || data.monthPlan == null || data.monthPlan is map) &&
+        (!('updatedAt' in data) || data.updatedAt == null || (data.updatedAt is string && data.updatedAt.size() <= 100)) &&
+        (!('userId' in data) || data.userId == null || (data.userId is string && data.userId.size() <= 128));
     }
 
     // Recipe collection

@@ -20,7 +20,10 @@ import {
   Printer,
   Check,
   CheckCircle2,
-  Utensils
+  Utensils,
+  Eye,
+  Users,
+  Pencil
 } from 'lucide-react';
 import { WeeklyPlan, DayPlan, MealItem, Recipe, getRecipeCategories } from '../types';
 import {
@@ -43,6 +46,7 @@ interface WeeklyPlannerViewProps {
   onOpenAddRecipe: () => void;
   onOpenGenerateAI: () => void;
   onNavigateToMonthly: () => void;
+  onEditRecipe?: (recipe: Recipe) => void;
 }
 
 export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
@@ -54,6 +58,7 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
   onOpenAddRecipe,
   onOpenGenerateAI,
   onNavigateToMonthly,
+  onEditRecipe,
 }) => {
   // Fecha de referencia para la semana visualizada (por defecto la semana actual)
   const [weekRefDate, setWeekRefDate] = useState<Date>(() => {
@@ -95,6 +100,50 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
   const [isExportPdfModalOpen, setIsExportPdfModalOpen] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfSuccess, setPdfSuccess] = useState(false);
+
+  // Full Recipe Detail Modal state
+  const [selectedDetailMeal, setSelectedDetailMeal] = useState<{
+    recipe: Recipe;
+    slot: 'lunch' | 'dinner';
+    mealId: string;
+  } | null>(null);
+
+  const handleOpenMealDetail = (meal: MealItem, slot: 'lunch' | 'dinner') => {
+    // Look up the full recipe by recipeId or name in the user's recipes
+    const found = recipes.find(
+      (r) => (meal.recipeId && r.id === meal.recipeId) || r.name.toLowerCase() === meal.name.toLowerCase()
+    );
+
+    if (found) {
+      setSelectedDetailMeal({
+        recipe: found,
+        slot,
+        mealId: meal.id
+      });
+    } else {
+      const fallbackRecipe: Recipe = {
+        id: meal.recipeId || meal.id,
+        name: meal.name,
+        description: 'Receta registrada en el plan semanal.',
+        category: meal.category || 'General',
+        categories: meal.category ? [meal.category] : ['General'],
+        timeMinutes: meal.timeMinutes || 20,
+        calories: meal.calories || 350,
+        servings: 1,
+        difficulty: 'Fácil',
+        tags: [],
+        imageUrl: meal.imageUrl || '',
+        ingredients: [],
+        instructions: [],
+        createdAt: new Date().toISOString()
+      };
+      setSelectedDetailMeal({
+        recipe: fallbackRecipe,
+        slot,
+        mealId: meal.id
+      });
+    }
+  };
 
   const handleOpenQuickAdd = (slot: 'lunch' | 'dinner') => {
     setAddModalCategoryFilter('Todas');
@@ -513,7 +562,8 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
               currentDay.lunch.map((meal) => (
                 <div
                   key={meal.id}
-                  className="group relative bg-[#f8f9fa] rounded-xl border border-[#e1e3e4] overflow-hidden shadow-2xs hover:shadow-sm transition-all"
+                  onClick={() => handleOpenMealDetail(meal, 'lunch')}
+                  className="group relative bg-[#f8f9fa] hover:bg-white rounded-xl border border-[#e1e3e4] hover:border-[#0f5238] overflow-hidden shadow-2xs hover:shadow-md transition-all cursor-pointer"
                 >
                   <button
                     type="button"
@@ -521,22 +571,34 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                       e.stopPropagation();
                       handleRemoveMeal('lunch', meal.id);
                     }}
-                    className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-white/95 hover:bg-white text-[#ba1a1a] shadow-xs hover:shadow-sm border border-[#e1e3e4] transition-all cursor-pointer flex items-center justify-center"
-                    title="Eliminar plato"
-                    aria-label="Eliminar plato"
+                    className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-white/95 hover:bg-[#ffdad6] text-[#ba1a1a] shadow-xs hover:shadow-sm border border-[#e1e3e4] transition-all cursor-pointer flex items-center justify-center"
+                    title="Eliminar plato de este día"
+                    aria-label="Eliminar plato de este día"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
 
                   {meal.imageUrl && (
-                    <div
-                      className="bg-cover bg-center w-full h-24 sm:h-32 md:h-36"
-                      style={{ backgroundImage: `url(${meal.imageUrl})` }}
-                    />
+                    <div className="relative w-full h-28 sm:h-36 overflow-hidden bg-[#e1e3e4]">
+                      <div
+                        className="bg-cover bg-center w-full h-full group-hover:scale-105 transition-transform duration-300"
+                        style={{ backgroundImage: `url(${meal.imageUrl})` }}
+                      />
+                      <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/75 text-white text-xs font-semibold backdrop-blur-xs shadow-md">
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Ver receta completa</span>
+                        </span>
+                      </div>
+                    </div>
                   )}
+
                   <div className="p-3.5 flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-extrabold text-base sm:text-sm text-[#191c1d] truncate tracking-tight" title={meal.name}>
+                      <h4
+                        className="font-extrabold text-base sm:text-sm text-[#191c1d] group-hover:text-[#0f5238] transition-colors truncate tracking-tight"
+                        title={meal.name}
+                      >
                         {meal.name}
                       </h4>
                       <div className="flex items-center gap-3 text-xs text-[#707973] mt-1">
@@ -557,15 +619,33 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                         )}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveMeal('lunch', meal.id)}
-                      className="shrink-0 p-1.5 rounded-md hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
-                      title="Eliminar plato"
-                      aria-label="Eliminar plato"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenMealDetail(meal, 'lunch');
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg bg-[#0f5238]/10 hover:bg-[#0f5238] text-[#0f5238] hover:text-white transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+                        title="Ver receta completa"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Ver receta</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveMeal('lunch', meal.id);
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
+                        title="Eliminar plato"
+                        aria-label="Eliminar plato"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))
@@ -618,7 +698,8 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
               currentDay.dinner.map((meal) => (
                 <div
                   key={meal.id}
-                  className="group relative bg-[#f8f9fa] rounded-xl border border-[#e1e3e4] overflow-hidden shadow-2xs hover:shadow-sm transition-all"
+                  onClick={() => handleOpenMealDetail(meal, 'dinner')}
+                  className="group relative bg-[#f8f9fa] hover:bg-white rounded-xl border border-[#e1e3e4] hover:border-[#0f5238] overflow-hidden shadow-2xs hover:shadow-md transition-all cursor-pointer"
                 >
                   <button
                     type="button"
@@ -626,22 +707,34 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                       e.stopPropagation();
                       handleRemoveMeal('dinner', meal.id);
                     }}
-                    className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-white/95 hover:bg-white text-[#ba1a1a] shadow-xs hover:shadow-sm border border-[#e1e3e4] transition-all cursor-pointer flex items-center justify-center"
-                    title="Eliminar plato"
-                    aria-label="Eliminar plato"
+                    className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-white/95 hover:bg-[#ffdad6] text-[#ba1a1a] shadow-xs hover:shadow-sm border border-[#e1e3e4] transition-all cursor-pointer flex items-center justify-center"
+                    title="Eliminar plato de este día"
+                    aria-label="Eliminar plato de este día"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
 
                   {meal.imageUrl && (
-                    <div
-                      className="bg-cover bg-center w-full h-24 sm:h-32 md:h-36"
-                      style={{ backgroundImage: `url(${meal.imageUrl})` }}
-                    />
+                    <div className="relative w-full h-28 sm:h-36 overflow-hidden bg-[#e1e3e4]">
+                      <div
+                        className="bg-cover bg-center w-full h-full group-hover:scale-105 transition-transform duration-300"
+                        style={{ backgroundImage: `url(${meal.imageUrl})` }}
+                      />
+                      <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/75 text-white text-xs font-semibold backdrop-blur-xs shadow-md">
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Ver receta completa</span>
+                        </span>
+                      </div>
+                    </div>
                   )}
+
                   <div className="p-3.5 flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-extrabold text-base sm:text-sm text-[#191c1d] truncate tracking-tight" title={meal.name}>
+                      <h4
+                        className="font-extrabold text-base sm:text-sm text-[#191c1d] group-hover:text-[#0f5238] transition-colors truncate tracking-tight"
+                        title={meal.name}
+                      >
                         {meal.name}
                       </h4>
                       <div className="flex items-center gap-3 text-xs text-[#707973] mt-1">
@@ -662,15 +755,33 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                         )}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveMeal('dinner', meal.id)}
-                      className="shrink-0 p-1.5 rounded-md hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
-                      title="Eliminar plato"
-                      aria-label="Eliminar plato"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenMealDetail(meal, 'dinner');
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg bg-[#0f5238]/10 hover:bg-[#0f5238] text-[#0f5238] hover:text-white transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+                        title="Ver receta completa"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Ver receta</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveMeal('dinner', meal.id);
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-[#ffdad6] text-[#ba1a1a] transition-all cursor-pointer"
+                        title="Eliminar plato"
+                        aria-label="Eliminar plato"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))
@@ -1204,6 +1315,248 @@ export const WeeklyPlannerView: React.FC<WeeklyPlannerViewProps> = ({
                       <span>Descargar PDF</span>
                     </>
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full Recipe Detail Modal */}
+      {selectedDetailMeal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150 no-print"
+          onClick={() => setSelectedDetailMeal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-[#e1e3e4] overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Image or Banner */}
+            <div className="relative shrink-0">
+              {selectedDetailMeal.recipe.imageUrl ? (
+                <div className="relative h-48 sm:h-60 w-full overflow-hidden bg-[#e1e3e4]">
+                  <img
+                    src={selectedDetailMeal.recipe.imageUrl}
+                    alt={selectedDetailMeal.recipe.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-linear-to-t from-black/75 via-black/25 to-transparent" />
+                </div>
+              ) : (
+                <div className="h-28 sm:h-32 bg-linear-to-br from-[#0f5238] to-[#1e4d3b] p-6 relative flex items-center">
+                  <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                    <Utensils className="w-6 h-6" />
+                  </div>
+                </div>
+              )}
+
+              {/* Meal Slot Badge */}
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 backdrop-blur-xs text-[#0f5238] font-bold text-xs shadow-md border border-[#e1e3e4]">
+                {selectedDetailMeal.slot === 'lunch' ? (
+                  <>
+                    <Sun className="w-3.5 h-3.5 text-[#9b4500]" />
+                    <span>Almuerzo</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-3.5 h-3.5 text-[#0f5238]" />
+                    <span>Cena</span>
+                  </>
+                )}
+                <span className="text-[#707973] font-normal">• {currentDay.dayName} {currentDay.dayNumber}</span>
+              </div>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setSelectedDetailMeal(null)}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-[#191c1d] flex items-center justify-center shadow-md transition-colors cursor-pointer"
+                title="Cerrar"
+                aria-label="Cerrar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              {/* Recipe Title & Categories (on overlay if image) */}
+              {selectedDetailMeal.recipe.imageUrl && (
+                <div className="absolute bottom-3 left-4 right-4 text-white">
+                  <div className="flex flex-wrap gap-1.5 mb-1.5">
+                    {getRecipeCategories(selectedDetailMeal.recipe).map((cat) => (
+                      <span
+                        key={cat}
+                        className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/20 backdrop-blur-xs text-white border border-white/30"
+                      >
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
+                  <h2 className="text-lg sm:text-xl font-bold font-heading leading-tight drop-shadow-xs">
+                    {selectedDetailMeal.recipe.name}
+                  </h2>
+                </div>
+              )}
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar">
+              {/* If no image, show title & categories here */}
+              {!selectedDetailMeal.recipe.imageUrl && (
+                <div>
+                  <div className="flex flex-wrap gap-1.5 mb-1.5">
+                    {getRecipeCategories(selectedDetailMeal.recipe).map((cat) => (
+                      <span
+                        key={cat}
+                        className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#b1f0ce]/40 text-[#0f5238] border border-[#0f5238]/20"
+                      >
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-bold font-heading text-[#191c1d]">
+                    {selectedDetailMeal.recipe.name}
+                  </h2>
+                </div>
+              )}
+
+              {/* Description if present */}
+              {selectedDetailMeal.recipe.description && (
+                <p className="text-xs sm:text-sm text-[#404943] leading-relaxed italic bg-[#f8f9fa] p-3 rounded-xl border border-[#e1e3e4]">
+                  "{selectedDetailMeal.recipe.description}"
+                </p>
+              )}
+
+              {/* Quick Specs Grid */}
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 sm:gap-3 p-3 bg-[#f8f9fa] rounded-xl border border-[#e1e3e4]">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#b1f0ce]/40 flex items-center justify-center text-[#0f5238] shrink-0">
+                    <Timer className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-[#707973] block truncate">Tiempo</span>
+                    <span className="text-xs font-bold text-[#191c1d] truncate block">{selectedDetailMeal.recipe.timeMinutes} min</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#ffdad6]/40 flex items-center justify-center text-[#9b4500] shrink-0">
+                    <Flame className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-[#707973] block truncate">Calorías</span>
+                    <span className="text-xs font-bold text-[#191c1d] truncate block">{selectedDetailMeal.recipe.calories} kcal</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#f3f4f5] flex items-center justify-center text-[#404943] shrink-0">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-[#707973] block truncate">Porciones</span>
+                    <span className="text-xs font-bold text-[#191c1d] truncate block">{selectedDetailMeal.recipe.servings || 1} rac.</span>
+                  </div>
+                </div>
+
+                <div className="hidden sm:flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#e1e3e4]/60 flex items-center justify-center text-[#0f5238] shrink-0">
+                    <Utensils className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-[#707973] block truncate">Dificultad</span>
+                    <span className="text-xs font-bold text-[#191c1d] truncate block">{selectedDetailMeal.recipe.difficulty || 'Fácil'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ingredients */}
+              <div>
+                <h3 className="text-xs font-bold text-[#404943] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Utensils className="w-3.5 h-3.5 text-[#0f5238]" />
+                  <span>Ingredientes ({selectedDetailMeal.recipe.ingredients?.length || 0})</span>
+                </h3>
+                {selectedDetailMeal.recipe.ingredients && selectedDetailMeal.recipe.ingredients.length > 0 ? (
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-[#191c1d]">
+                    {selectedDetailMeal.recipe.ingredients.map((ing, idx) => (
+                      <li key={idx} className="flex items-start gap-2 bg-[#f8f9fa] p-2.5 rounded-lg border border-[#e1e3e4]/70">
+                        <Check className="w-3.5 h-3.5 text-[#0f5238] mt-0.5 shrink-0" />
+                        <span>{ing}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-[#707973] italic bg-[#f8f9fa] p-3 rounded-lg border border-[#e1e3e4]/60">
+                    No hay lista detallada de ingredientes para esta receta.
+                  </p>
+                )}
+              </div>
+
+              {/* Instructions */}
+              <div>
+                <h3 className="text-xs font-bold text-[#404943] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-[#0f5238]" />
+                  <span>Pasos de Preparación</span>
+                </h3>
+                {selectedDetailMeal.recipe.instructions && selectedDetailMeal.recipe.instructions.length > 0 ? (
+                  <div className="space-y-2.5">
+                    {selectedDetailMeal.recipe.instructions.map((step, idx) => (
+                      <div key={idx} className="flex items-start gap-3 p-3 bg-[#f8f9fa] rounded-xl border border-[#e1e3e4]/70">
+                        <span className="w-5 h-5 rounded-full bg-[#0f5238] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                          {idx + 1}
+                        </span>
+                        <p className="text-xs sm:text-sm text-[#191c1d] leading-relaxed">
+                          {step}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#707973] italic bg-[#f8f9fa] p-3 rounded-lg border border-[#e1e3e4]/60">
+                    No hay pasos de preparación detallados registrados.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="p-4 bg-[#f8f9fa] border-t border-[#e1e3e4] flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const mealId = selectedDetailMeal.mealId;
+                  const slot = selectedDetailMeal.slot;
+                  setSelectedDetailMeal(null);
+                  handleRemoveMeal(slot, mealId);
+                }}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-[#ba1a1a] hover:bg-[#ffdad6]/60 transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Quitar receta del menú de este día"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Quitar de este día</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                {onEditRecipe && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rec = selectedDetailMeal.recipe;
+                      setSelectedDetailMeal(null);
+                      onEditRecipe(rec);
+                    }}
+                    className="px-3.5 py-2 bg-white hover:bg-[#b1f0ce]/30 text-[#0f5238] border border-[#bfc9c1] hover:border-[#0f5238] rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all active:scale-98"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Editar receta</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedDetailMeal(null)}
+                  className="px-5 py-2 bg-[#0f5238] hover:bg-[#2d6a4f] text-white rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-xs active:scale-98"
+                >
+                  Cerrar
                 </button>
               </div>
             </div>

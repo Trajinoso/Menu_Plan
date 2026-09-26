@@ -1178,6 +1178,7 @@ export function App() {
               onOpenAddRecipe={handleOpenAddRecipe}
               onOpenGenerateAI={() => setIsGenerateAIModalOpen(true)}
               onNavigateToMonthly={() => setActiveTab('monthly')}
+              onEditRecipe={handleEditRecipe}
             />
           )}
 
